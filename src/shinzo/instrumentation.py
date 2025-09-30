@@ -80,6 +80,7 @@ class McpServerInstrumentation:
         self.server = server
         self.telemetry_manager = telemetry_manager
         self.is_instrumented = False
+        self.client_version_reported = False
 
     def instrument(self) -> None:
         """Instrument the MCP server."""
@@ -89,9 +90,22 @@ class McpServerInstrumentation:
         self._instrument_tools()
         self._instrument_prompts()
         self._instrument_resources()
+        self._report_client_version()
         # TODO: Add more instrumentation as needed for other MCP operations
 
         self.is_instrumented = True
+
+    def _report_client_version(self) -> None:
+        """Report client version once at initialization."""
+        if self.client_version_reported:
+            return
+
+        # Try to get client version from the server
+        if hasattr(self.server, "get_client_version"):
+            client_info = self.server.get_client_version()
+            if client_info:
+                self.telemetry_manager.report_client_info(client_info)
+                self.client_version_reported = True
 
     def _instrument_tools(self) -> None:
         """Instrument tool calls."""
@@ -165,6 +179,15 @@ class McpServerInstrumentation:
         @functools.wraps(original_handler)
         async def instrumented_handler(*args: Any, **kwargs: Any) -> Any:
             """Instrumented handler."""
+            # Report client version on first request if not already reported
+            if not self.client_version_reported:
+                self._report_client_version()
+
+            # Try to get client info for span attributes
+            client_info = None
+            if hasattr(self.server, "get_client_version"):
+                client_info = self.server.get_client_version()
+
             span_attributes = {
                 **base_attributes,
                 "mcp.request.id": generate_uuid(),
@@ -173,6 +196,11 @@ class McpServerInstrumentation:
 
             if runtime_info["port"]:
                 span_attributes["client.port"] = runtime_info["port"]
+
+            if client_info:
+                span_attributes["mcp.client.name"] = client_info.get("name", "unknown")
+                if "version" in client_info:
+                    span_attributes["mcp.client.version"] = client_info["version"]
 
             # Extract arguments
             if args:

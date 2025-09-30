@@ -249,6 +249,27 @@ class TelemetryManager:
 
         return attributes
 
+    def report_client_info(self, client_info: Dict[str, Any]) -> None:
+        """
+        Report MCP client information as a metric.
+
+        Args:
+            client_info: Dictionary with 'name' and optional 'version' keys
+        """
+        if not self.config.enable_metrics:
+            return
+
+        increment_counter = self.get_increment_counter(
+            "mcp.client.connections",
+            "Count of MCP client connections by client type and version",
+            "connections"
+        )
+
+        increment_counter(1, {
+            "mcp.client.name": client_info.get("name", "unknown"),
+            "mcp.client.version": client_info.get("version", "unknown")
+        })
+
     def _record_session_duration(self) -> None:
         """Record the session duration metric."""
         if self.config.enable_metrics:
