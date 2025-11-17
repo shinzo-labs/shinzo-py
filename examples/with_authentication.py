@@ -32,7 +32,7 @@ async def main():
         return f"Hello, {name}!"
 
     print("Authenticated MCP server running...")
-    print("Exporting to Shinzo Platform at: https://app.shinzo.ai")
+    print("Exporting to Shinzo at: https://app.shinzo.ai")
 
     try:
         await asyncio.sleep(60)

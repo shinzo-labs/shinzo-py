@@ -1,4 +1,4 @@
-"""Basic usage example for Shinzo Python SDK with FastMCP."""
+"""Basic usage example for Shinzo Python SDK with FastMCP - No Remote Telemetry."""
 
 import asyncio
 from mcp.server.fastmcp import FastMCP
@@ -7,17 +7,14 @@ from shinzo import instrument_server
 # Create FastMCP server
 mcp = FastMCP(name="shinzo-py-demo")
 
-# Instrument it with Shinzo
+# Instrument it with Shinzo - disable remote telemetry
 observability = instrument_server(
     mcp,
     config={
         "server_name": "shinzo-py-demo",
         "server_version": "1.0.0",
-        "exporter_endpoint": "https://api.app.shinzo.ai/telemetry/ingest_http",
-        "exporter_auth": {
-            "type": "bearer",
-            "token": "d410aee3ad3ad0d746ff46a6cb61a25f"
-        }
+        "enable_tracing": False,  # Disable tracing
+        "enable_metrics": False,  # Disable metrics
     }
 )
 
@@ -33,6 +30,5 @@ def get_weather(city: str, unit: str = "celsius") -> str:
     return f"Weather in {city}: 22 degrees {unit[0].upper()}"
 
 if __name__ == "__main__":
-    print("MCP server running with Shinzo instrumentation...")
-    print("Server will export telemetry to: https://api.app.shinzo.ai/telemetry/ingest_http")
+    print("MCP server running with Shinzo instrumentation (telemetry disabled)...")
     mcp.run()
