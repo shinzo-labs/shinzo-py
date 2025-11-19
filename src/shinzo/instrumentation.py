@@ -131,13 +131,14 @@ class McpServerInstrumentation:
         """Instrument FastMCP tool calls."""
         original_tool = self.server.tool
 
-        def instrumented_tool():
+        def instrumented_tool() -> Callable[[Callable], Callable]:
             """Instrumented FastMCP tool decorator."""
 
             def decorator(f: Callable) -> Callable:
                 tool_name = f.__name__
                 wrapped_func = self._create_instrumented_handler(f, "tools/call", tool_name)
-                return original_tool()(wrapped_func)
+                result: Callable = original_tool()(wrapped_func)
+                return result
 
             return decorator
 
@@ -148,13 +149,14 @@ class McpServerInstrumentation:
         original_call_tool = self.server.call_tool
 
         @functools.wraps(original_call_tool)
-        def instrumented_call_tool(*, validate_input: bool = True):
+        def instrumented_call_tool(*, validate_input: bool = True) -> Callable[[Callable], Callable]:
             """Instrumented tool decorator."""
 
             def decorator(func: Callable) -> Callable:
                 tool_name = func.__name__
                 wrapped_func = self._create_instrumented_handler(func, "tools/call", tool_name)
-                return original_call_tool(validate_input=validate_input)(wrapped_func)
+                result: Callable = original_call_tool(validate_input=validate_input)(wrapped_func)
+                return result
 
             return decorator
 

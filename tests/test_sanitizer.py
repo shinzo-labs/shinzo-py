@@ -3,7 +3,7 @@
 from shinzo.sanitizer import PIISanitizer
 
 
-def test_sanitize_email():
+def test_sanitize_email() -> None:
     """Test that email addresses are sanitized."""
     sanitizer = PIISanitizer()
     data = {"email": "user@example.com", "message": "Contact me at admin@test.org"}
@@ -13,7 +13,7 @@ def test_sanitize_email():
     assert "admin@test.org" not in result["message"]
 
 
-def test_sanitize_nested_data():
+def test_sanitize_nested_data() -> None:
     """Test that nested data is sanitized."""
     sanitizer = PIISanitizer()
     data = {"user": {"email": "user@example.com", "profile": {"contact": "admin@test.org"}}}
@@ -22,7 +22,7 @@ def test_sanitize_nested_data():
     assert result["user"]["profile"]["contact"] == "[REDACTED]"
 
 
-def test_sanitize_list():
+def test_sanitize_list() -> None:
     """Test that lists are sanitized."""
     sanitizer = PIISanitizer()
     data = {"emails": ["user1@example.com", "user2@example.com"]}
@@ -30,7 +30,7 @@ def test_sanitize_list():
     assert result["emails"] == ["[REDACTED]", "[REDACTED]"]
 
 
-def test_non_pii_data_unchanged():
+def test_non_pii_data_unchanged() -> None:
     """Test that non-PII data is unchanged."""
     sanitizer = PIISanitizer()
     data = {"name": "John Doe", "age": 30, "active": True}

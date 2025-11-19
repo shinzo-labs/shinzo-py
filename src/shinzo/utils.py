@@ -2,7 +2,7 @@
 
 import socket
 import uuid
-from typing import Dict
+from typing import Any, Dict
 
 
 def generate_uuid() -> str:
@@ -10,7 +10,7 @@ def generate_uuid() -> str:
     return str(uuid.uuid4())
 
 
-def get_runtime_info() -> Dict[str, any]:
+def get_runtime_info() -> Dict[str, Any]:
     """Get runtime information including address and port."""
     try:
         hostname = socket.gethostname()

@@ -1,7 +1,7 @@
 """Custom JSON-based OTLP exporters for HTTP transport."""
 
 import json
-from typing import Dict, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 from urllib.parse import urljoin
 
 import httpx
@@ -45,14 +45,14 @@ class OTLPJsonSpanExporter(SpanExporter):
             print(f"Failed to export spans: {e}")
             return SpanExportResult.FAILURE
 
-    def _spans_to_otlp_json(self, spans: Sequence[ReadableSpan]) -> dict:
+    def _spans_to_otlp_json(self, spans: Sequence[ReadableSpan]) -> Dict[str, Any]:
         """Convert spans to OTLP JSON format."""
         # Group spans by resource
-        resource_spans = {}
+        resource_spans: Dict[str, Dict[str, Any]] = {}
 
         for span in spans:
             # Get resource attributes
-            resource_attrs = {}
+            resource_attrs: Dict[str, Any] = {}
             if span.resource:
                 resource_attrs = {
                     k: self._value_to_json(v) for k, v in span.resource.attributes.items()
@@ -61,6 +61,7 @@ class OTLPJsonSpanExporter(SpanExporter):
             resource_key = json.dumps(resource_attrs, sort_keys=True)
 
             if resource_key not in resource_spans:
+                scope_spans: List[Dict[str, Any]] = []
                 resource_spans[resource_key] = {
                     "resource": {
                         "attributes": [
@@ -68,7 +69,7 @@ class OTLPJsonSpanExporter(SpanExporter):
                             for k, v in (span.resource.attributes.items() if span.resource else {})
                         ]
                     },
-                    "scopeSpans": [],
+                    "scopeSpans": scope_spans,
                 }
 
             # Convert span to JSON
@@ -105,7 +106,7 @@ class OTLPJsonSpanExporter(SpanExporter):
 
         return {"resourceSpans": list(resource_spans.values())}
 
-    def _value_to_json(self, value):
+    def _value_to_json(self, value: Any) -> Any:
         """Convert attribute value to JSON-serializable format."""
         if isinstance(value, (str, int, float, bool)):
             return value
@@ -114,7 +115,7 @@ class OTLPJsonSpanExporter(SpanExporter):
         else:
             return str(value)
 
-    def _attr_value_to_json(self, value):
+    def _attr_value_to_json(self, value: Any) -> Dict[str, Any]:
         """Convert attribute value to OTLP JSON attribute format."""
         if isinstance(value, str):
             return {"stringValue": value}
@@ -177,7 +178,7 @@ class OTLPJsonMetricExporter(MetricExporter):
         self._preferred_aggregation = {}
 
     def export(
-        self, metrics_data: MetricsData, timeout_millis: float = 10000
+        self, metrics_data: MetricsData, timeout_millis: float = 10000, **kwargs: Any
     ) -> MetricExportResult:
         """Export metrics to the backend."""
         if not metrics_data or not metrics_data.resource_metrics:
@@ -194,32 +195,34 @@ class OTLPJsonMetricExporter(MetricExporter):
             print(f"Failed to export metrics: {e}")
             return MetricExportResult.FAILURE
 
-    def _metrics_to_otlp_json(self, metrics_data: MetricsData) -> dict:
+    def _metrics_to_otlp_json(self, metrics_data: MetricsData) -> Dict[str, Any]:
         """Convert metrics to OTLP JSON format."""
-        resource_metrics = []
+        resource_metrics: List[Dict[str, Any]] = []
 
         for rm in metrics_data.resource_metrics:
-            resource_json = {
+            scope_metrics: List[Dict[str, Any]] = []
+            resource_json: Dict[str, Any] = {
                 "resource": {
                     "attributes": [
                         {"key": k, "value": self._attr_value_to_json(v)}
                         for k, v in (rm.resource.attributes.items() if rm.resource else {})
                     ]
                 },
-                "scopeMetrics": [],
+                "scopeMetrics": scope_metrics,
             }
 
             for sm in rm.scope_metrics:
-                scope_json = {
+                metrics_list: List[Dict[str, Any]] = []
+                scope_json: Dict[str, Any] = {
                     "scope": {
                         "name": sm.scope.name if sm.scope else "",
                         "version": sm.scope.version if sm.scope else "",
                     },
-                    "metrics": [],
+                    "metrics": metrics_list,
                 }
 
                 for metric in sm.metrics:
-                    metric_json = {
+                    metric_json: Dict[str, Any] = {
                         "name": metric.name,
                         "description": metric.description or "",
                         "unit": metric.unit or "",
@@ -227,9 +230,9 @@ class OTLPJsonMetricExporter(MetricExporter):
 
                     # Handle different metric types
                     if hasattr(metric.data, "data_points"):
-                        data_points = []
+                        data_points: List[Dict[str, Any]] = []
                         for dp in metric.data.data_points:
-                            dp_json = {
+                            dp_json: Dict[str, Any] = {
                                 "timeUnixNano": str(dp.time_unix_nano),
                                 "attributes": [
                                     {"key": k, "value": self._attr_value_to_json(v)}
@@ -269,7 +272,7 @@ class OTLPJsonMetricExporter(MetricExporter):
 
         return {"resourceMetrics": resource_metrics}
 
-    def _attr_value_to_json(self, value):
+    def _attr_value_to_json(self, value: Any) -> Dict[str, Any]:
         """Convert attribute value to OTLP JSON attribute format."""
         if isinstance(value, str):
             return {"stringValue": value}
@@ -282,7 +285,7 @@ class OTLPJsonMetricExporter(MetricExporter):
         else:
             return {"stringValue": str(value)}
 
-    def shutdown(self, timeout_millis: float = 30000, **kwargs) -> None:
+    def shutdown(self, timeout_millis: float = 30000, **kwargs: Any) -> None:
         """Shutdown the exporter."""
         self.client.close()
 

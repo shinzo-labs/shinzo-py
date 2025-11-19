@@ -202,10 +202,16 @@ class SessionTracker:
         if self.config.exporter_auth:
             auth = self.config.exporter_auth
             if auth.type == "bearer":
+                if not auth.token:
+                    raise ValueError("Bearer token is required for bearer authentication")
                 headers["Authorization"] = f"Bearer {auth.token}"
             elif auth.type == "apiKey":
+                if not auth.api_key:
+                    raise ValueError("API key is required for apiKey authentication")
                 headers["X-API-Key"] = auth.api_key
             elif auth.type == "basic":
+                if not auth.username or not auth.password:
+                    raise ValueError("Username and password are required for basic authentication")
                 import base64
 
                 credentials = base64.b64encode(f"{auth.username}:{auth.password}".encode()).decode()
@@ -215,7 +221,8 @@ class SessionTracker:
         response = await self._client.post(url, json=data, headers=headers)
         response.raise_for_status()
 
-        return response.json()
+        result = response.json()
+        return result if isinstance(result, dict) else None
 
     def get_session_id(self) -> str:
         """Get the session ID."""

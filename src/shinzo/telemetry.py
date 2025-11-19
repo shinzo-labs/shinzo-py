@@ -67,10 +67,16 @@ class TelemetryManager:
         if self.config.exporter_auth:
             auth = self.config.exporter_auth
             if auth.type == "bearer":
+                if not auth.token:
+                    raise ValueError("Bearer token is required for bearer authentication")
                 headers["Authorization"] = f"Bearer {auth.token}"
             elif auth.type == "apiKey":
+                if not auth.api_key:
+                    raise ValueError("API key is required for apiKey authentication")
                 headers["X-API-Key"] = auth.api_key
             elif auth.type == "basic":
+                if not auth.username or not auth.password:
+                    raise ValueError("Username and password are required for basic authentication")
                 credentials = f"{auth.username}:{auth.password}"
                 encoded = base64.b64encode(credentials.encode()).decode()
                 headers["Authorization"] = f"Basic {encoded}"
@@ -79,13 +85,16 @@ class TelemetryManager:
     def _init_tracing(self, resource: Resource) -> None:
         """Initialize tracing."""
         if self.config.exporter_type == "console":
-            exporter = ConsoleSpanExporter()
+            exporter: Any = ConsoleSpanExporter()
         else:
             headers = self._get_otlp_headers()
             endpoint = self.config.exporter_endpoint
+            if not endpoint:
+                raise ValueError("Exporter endpoint is required for OTLP export")
             exporter = OTLPJsonSpanExporter(endpoint=endpoint, headers=headers)
 
-        sampler = TraceIdRatioBased(self.config.sampling_rate)
+        sampling_rate = self.config.sampling_rate if self.config.sampling_rate is not None else 1.0
+        sampler = TraceIdRatioBased(sampling_rate)
         provider = TracerProvider(resource=resource, sampler=sampler)
         processor = BatchSpanProcessor(exporter)
         provider.add_span_processor(processor)
@@ -96,10 +105,12 @@ class TelemetryManager:
     def _init_metrics(self, resource: Resource) -> None:
         """Initialize metrics."""
         if self.config.exporter_type == "console":
-            exporter = ConsoleMetricExporter()
+            exporter: Any = ConsoleMetricExporter()
         else:
             headers = self._get_otlp_headers()
             endpoint = self.config.exporter_endpoint
+            if not endpoint:
+                raise ValueError("Exporter endpoint is required for OTLP export")
             exporter = OTLPJsonMetricExporter(endpoint=endpoint, headers=headers)
 
         reader = PeriodicExportingMetricReader(
