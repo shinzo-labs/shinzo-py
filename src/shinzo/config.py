@@ -5,7 +5,7 @@ from shinzo.types import TelemetryConfig
 
 
 DEFAULT_CONFIG: Dict[str, Any] = {
-    "exporter_endpoint": "http://localhost:4318/v1/otlp",
+    "exporter_endpoint": "https://api.app.shinzo.ai/telemetry/ingest_http",
     "sampling_rate": 1.0,
     "metric_export_interval_ms": 60000,
     "enable_pii_sanitization": False,
@@ -15,7 +15,6 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "enable_tracing": True,
     "batch_timeout_ms": 30000,
 }
-
 
 class ConfigValidator:
     """Validator for telemetry configuration."""

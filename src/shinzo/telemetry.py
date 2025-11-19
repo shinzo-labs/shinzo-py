@@ -10,8 +10,6 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExport
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader, ConsoleMetricExporter
 from opentelemetry.sdk.resources import Resource
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
 from opentelemetry.semconv.resource import ResourceAttributes
 from opentelemetry.sdk.trace.sampling import TraceIdRatioBased
 
@@ -19,7 +17,7 @@ from shinzo.types import TelemetryConfig
 from shinzo.config import ConfigValidator, DEFAULT_CONFIG
 from shinzo.sanitizer import PIISanitizer
 from shinzo.utils import generate_uuid
-
+from shinzo.json_exporter import OTLPJsonSpanExporter, OTLPJsonMetricExporter
 
 class TelemetryManager:
     """Manager for OpenTelemetry tracing and metrics."""
@@ -33,7 +31,6 @@ class TelemetryManager:
         """
         ConfigValidator.validate(config)
 
-        # Merge with defaults
         self.config = config
         for key, value in DEFAULT_CONFIG.items():
             if not hasattr(config, key) or getattr(config, key) is None:
@@ -43,23 +40,19 @@ class TelemetryManager:
         self.session_start = time.time()
         self.is_initialized = False
 
-        # Initialize PII sanitizer if enabled
         self.pii_sanitizer: Optional[PIISanitizer] = None
         if self.config.enable_pii_sanitization:
             self.pii_sanitizer = config.pii_sanitizer or PIISanitizer()
 
-        # Create resource
         resource = Resource(attributes={
             ResourceAttributes.SERVICE_NAME: self.config.server_name,
             ResourceAttributes.SERVICE_VERSION: self.config.server_version,
             "mcp.session.id": self.session_id,
         })
 
-        # Initialize tracing
         if self.config.enable_tracing:
             self._init_tracing(resource)
 
-        # Initialize metrics
         if self.config.enable_metrics:
             self._init_metrics(resource)
 
@@ -87,15 +80,9 @@ class TelemetryManager:
         else:
             headers = self._get_otlp_headers()
             endpoint = self.config.exporter_endpoint
-            if not endpoint.endswith("/"):
-                endpoint += "/"
-            endpoint += "traces"
-            exporter = OTLPSpanExporter(endpoint=endpoint, headers=headers)
+            exporter = OTLPJsonSpanExporter(endpoint=endpoint, headers=headers)
 
-        # Set up sampler
         sampler = TraceIdRatioBased(self.config.sampling_rate)
-
-        # Create tracer provider
         provider = TracerProvider(resource=resource, sampler=sampler)
         processor = BatchSpanProcessor(exporter)
         provider.add_span_processor(processor)
@@ -113,10 +100,7 @@ class TelemetryManager:
         else:
             headers = self._get_otlp_headers()
             endpoint = self.config.exporter_endpoint
-            if not endpoint.endswith("/"):
-                endpoint += "/"
-            endpoint += "metrics"
-            exporter = OTLPMetricExporter(endpoint=endpoint, headers=headers)
+            exporter = OTLPJsonMetricExporter(endpoint=endpoint, headers=headers)
 
         reader = PeriodicExportingMetricReader(
             exporter,
@@ -282,12 +266,10 @@ class TelemetryManager:
         """
         processed_data = dict(data)
 
-        # Apply custom data processors
         if self.config.data_processors:
             for processor in self.config.data_processors:
                 processed_data = processor(processed_data)
 
-        # Apply PII sanitization
         if self.pii_sanitizer:
             processed_data = self.pii_sanitizer.sanitize(processed_data)
 
@@ -297,13 +279,11 @@ class TelemetryManager:
         """Shutdown the telemetry manager."""
         self._record_session_duration()
 
-        # Shutdown tracer provider
         if self.config.enable_tracing:
             tracer_provider = trace.get_tracer_provider()
             if hasattr(tracer_provider, "shutdown"):
                 tracer_provider.shutdown()
 
-        # Shutdown meter provider
         if self.config.enable_metrics:
             meter_provider = metrics.get_meter_provider()
             if hasattr(meter_provider, "shutdown"):

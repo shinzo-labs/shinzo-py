@@ -13,10 +13,9 @@ observability = instrument_server(
     config={
         "server_name": "shinzo-py-demo",
         "server_version": "1.0.0",
-        "exporter_endpoint": "https://api.app.shinzo.ai/telemetry/ingest_http",
         "exporter_auth": {
             "type": "bearer",
-            "token": "d410aee3ad3ad0d746ff46a6cb61a25f"
+            "token": "abc" # replace with your actual token
         }
     }
 )
@@ -34,5 +33,4 @@ def get_weather(city: str, unit: str = "celsius") -> str:
 
 if __name__ == "__main__":
     print("MCP server running with Shinzo instrumentation...")
-    print("Server will export telemetry to: https://api.app.shinzo.ai/telemetry/ingest_http")
     mcp.run()

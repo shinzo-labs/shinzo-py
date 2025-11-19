@@ -1,17 +1,17 @@
 """MCP server instrumentation for OpenTelemetry."""
 
 import functools
+import inspect
 import time
 from datetime import datetime
 from typing import Any, Callable, Dict, Optional
-
 from opentelemetry.trace import Status, StatusCode
-
 from shinzo.session import SessionTracker, SessionEvent, EventType
 from shinzo.telemetry import TelemetryManager
 from shinzo.types import TelemetryConfig, ObservabilityInstance
 from shinzo.utils import generate_uuid, get_runtime_info
 
+S_TO_MS = 1000
 
 def instrument_server(server: Any, config: Dict[str, Any] | TelemetryConfig) -> ObservabilityInstance:
     """
@@ -24,7 +24,6 @@ def instrument_server(server: Any, config: Dict[str, Any] | TelemetryConfig) -> 
     Returns:
         Observability instance for manual instrumentation
     """
-    # Convert dict config to TelemetryConfig
     if isinstance(config, dict):
         config = TelemetryConfig(**config)
 
@@ -33,7 +32,6 @@ def instrument_server(server: Any, config: Dict[str, Any] | TelemetryConfig) -> 
     instrumentation.instrument()
 
     return ObservabilityInstanceImpl(telemetry_manager, instrumentation)
-
 
 class ObservabilityInstanceImpl:
     """Implementation of the observability instance."""
@@ -67,7 +65,6 @@ class ObservabilityInstanceImpl:
     async def shutdown(self) -> None:
         """Shutdown the observability instance."""
         await self.telemetry_manager.shutdown()
-
 
 class McpServerInstrumentation:
     """Instrumentation for MCP servers."""
@@ -120,18 +117,16 @@ class McpServerInstrumentation:
             return
 
         self._instrument_tools()
-        self._instrument_prompts()
-        self._instrument_resources()
         # TODO: Add more instrumentation as needed for other MCP operations
+        # self._instrument_prompts()
+        # self._instrument_resources()
 
         self.is_instrumented = True
 
     def _instrument_tools(self) -> None:
         """Instrument tool calls."""
-        # Handle FastMCP servers
         if hasattr(self.server, "tool"):
             self._instrument_fastmcp_tools()
-        # Handle traditional MCP servers
         elif hasattr(self.server, "call_tool"):
             self._instrument_traditional_tools()
 
@@ -148,7 +143,6 @@ class McpServerInstrumentation:
                     "tools/call",
                     tool_name
                 )
-                # Call original decorator with the wrapped function
                 return original_tool()(wrapped_func)
             
             return decorator
@@ -169,21 +163,10 @@ class McpServerInstrumentation:
                     "tools/call",
                     tool_name
                 )
-                # Call original decorator with the wrapped function
                 return original_call_tool(validate_input=validate_input)(wrapped_func)
             return decorator
 
         self.server.call_tool = instrumented_call_tool
-
-    def _instrument_prompts(self) -> None:
-        """Instrument prompt operations."""
-        # TODO: Implement prompt instrumentation
-        pass
-
-    def _instrument_resources(self) -> None:
-        """Instrument resource operations."""
-        # TODO: Implement resource instrumentation
-        pass
 
     def _create_instrumented_handler(
         self,
@@ -221,8 +204,6 @@ class McpServerInstrumentation:
             "calls"
         )
 
-        # Check if the original handler is async or sync
-        import inspect
         is_async = inspect.iscoroutinefunction(original_handler)
 
         if is_async:
@@ -268,7 +249,6 @@ class McpServerInstrumentation:
         if runtime_info["port"]:
             span_attributes["client.port"] = runtime_info["port"]
 
-        # Extract arguments
         if args:
             params = args[0] if len(args) > 0 else {}
         else:
@@ -286,7 +266,6 @@ class McpServerInstrumentation:
             result = None
             error = None
 
-            # Track tool call event if session tracking is enabled
             if self.session_tracker and self.session_tracker.is_session_active():
                 self.session_tracker.add_event(
                     SessionEvent(
@@ -305,9 +284,8 @@ class McpServerInstrumentation:
                     result = original_handler(*args, **kwargs)
                 span.set_status(Status(StatusCode.OK))
 
-                # Track successful tool response
                 if self.session_tracker and self.session_tracker.is_session_active():
-                    duration_ms = int((time.time() - start_time) * 1000)
+                    duration_ms = int((time.time() - start_time) * S_TO_MS)
                     self.session_tracker.add_event(
                         SessionEvent(
                             timestamp=datetime.now(),
@@ -323,9 +301,8 @@ class McpServerInstrumentation:
                 span.set_status(Status(StatusCode.ERROR, str(e)))
                 span.set_attribute("error.type", type(e).__name__)
 
-                # Track error event
                 if self.session_tracker and self.session_tracker.is_session_active():
-                    duration_ms = int((time.time() - start_time) * 1000)
+                    duration_ms = int((time.time() - start_time) * S_TO_MS)
                     self.session_tracker.add_event(
                         SessionEvent(
                             timestamp=datetime.now(),
@@ -342,7 +319,7 @@ class McpServerInstrumentation:
                     )
 
             end_time = time.time()
-            duration = (end_time - start_time) * 1000  # Convert to ms
+            duration = (end_time - start_time) * S_TO_MS
 
             hist_attributes = dict(base_attributes)
             if error:
