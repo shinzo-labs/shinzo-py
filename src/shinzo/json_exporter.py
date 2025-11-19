@@ -1,7 +1,6 @@
 """Custom JSON-based OTLP exporters for HTTP transport."""
 
 import json
-import time
 from typing import Dict, Optional, Sequence
 from urllib.parse import urljoin
 

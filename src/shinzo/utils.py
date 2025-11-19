@@ -2,7 +2,7 @@
 
 import socket
 import uuid
-from typing import Dict, Tuple
+from typing import Dict
 
 
 def generate_uuid() -> str:

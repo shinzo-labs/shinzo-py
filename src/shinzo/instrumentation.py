@@ -174,8 +174,6 @@ class McpServerInstrumentation:
         Returns:
             Instrumented handler
         """
-        runtime_info = get_runtime_info()
-
         base_attributes = {"mcp.method.name": method, "mcp.tool.name": name}
 
         record_histogram = self.telemetry_manager.get_histogram(
