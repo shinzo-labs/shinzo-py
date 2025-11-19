@@ -149,7 +149,9 @@ class McpServerInstrumentation:
         original_call_tool = self.server.call_tool
 
         @functools.wraps(original_call_tool)
-        def instrumented_call_tool(*, validate_input: bool = True) -> Callable[[Callable], Callable]:
+        def instrumented_call_tool(
+            *, validate_input: bool = True
+        ) -> Callable[[Callable], Callable]:
             """Instrumented tool decorator."""
 
             def decorator(func: Callable) -> Callable:
