@@ -46,9 +46,11 @@ class PIISanitizer:
                 sanitized[key] = self.sanitize(value)
             elif isinstance(value, list):
                 sanitized[key] = [
-                    self._sanitize_string(item) if isinstance(item, str)
-                    else self.sanitize(item) if isinstance(item, dict)
-                    else item
+                    (
+                        self._sanitize_string(item)
+                        if isinstance(item, str)
+                        else self.sanitize(item) if isinstance(item, dict) else item
+                    )
                     for item in value
                 ]
             else:

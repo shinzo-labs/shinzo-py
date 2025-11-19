@@ -16,6 +16,7 @@ from shinzo.utils import generate_uuid
 
 class EventType(str, Enum):
     """Types of session events."""
+
     TOOL_CALL = "tool_call"
     TOOL_RESPONSE = "tool_response"
     ERROR = "error"
@@ -26,6 +27,7 @@ class EventType(str, Enum):
 @dataclass
 class SessionEvent:
     """Represents a single event in a session."""
+
     timestamp: datetime
     event_type: EventType
     tool_name: Optional[str] = None
@@ -69,17 +71,17 @@ class SessionTracker:
 
         try:
             response = await self._send_to_backend(
-                '/sessions/create',
+                "/sessions/create",
                 {
-                    'session_id': self.session_id,
-                    'resource_uuid': self.resource_uuid,
-                    'start_time': self.start_time.isoformat(),
-                    'metadata': metadata
-                }
+                    "session_id": self.session_id,
+                    "resource_uuid": self.resource_uuid,
+                    "start_time": self.start_time.isoformat(),
+                    "metadata": metadata,
+                },
             )
 
-            if response and 'session_uuid' in response:
-                self.session_uuid = response['session_uuid']
+            if response and "session_uuid" in response:
+                self.session_uuid = response["session_uuid"]
                 self.is_active = True
 
                 # Start periodic flush task
@@ -114,18 +116,18 @@ class SessionTracker:
         try:
             for event in events_to_send:
                 await self._send_to_backend(
-                    '/sessions/add_event',
+                    "/sessions/add_event",
                     {
-                        'session_uuid': self.session_uuid,
-                        'timestamp': event.timestamp.isoformat(),
-                        'event_type': event.event_type.value,
-                        'tool_name': event.tool_name,
-                        'input_data': event.input_data,
-                        'output_data': event.output_data,
-                        'error_data': event.error_data,
-                        'duration_ms': event.duration_ms,
-                        'metadata': event.metadata
-                    }
+                        "session_uuid": self.session_uuid,
+                        "timestamp": event.timestamp.isoformat(),
+                        "event_type": event.event_type.value,
+                        "tool_name": event.tool_name,
+                        "input_data": event.input_data,
+                        "output_data": event.output_data,
+                        "error_data": event.error_data,
+                        "duration_ms": event.duration_ms,
+                        "metadata": event.metadata,
+                    },
                 )
         except Exception as e:
             print(f"Failed to flush session events: {e}")
@@ -150,11 +152,8 @@ class SessionTracker:
 
         try:
             await self._send_to_backend(
-                '/sessions/complete',
-                {
-                    'session_uuid': self.session_uuid,
-                    'end_time': datetime.now().isoformat()
-                }
+                "/sessions/complete",
+                {"session_uuid": self.session_uuid, "end_time": datetime.now().isoformat()},
             )
 
             self.is_active = False
@@ -174,7 +173,9 @@ class SessionTracker:
         except asyncio.CancelledError:
             pass
 
-    async def _send_to_backend(self, endpoint: str, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    async def _send_to_backend(
+        self, endpoint: str, data: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
         """
         Send data to the backend.
 
@@ -193,27 +194,24 @@ class SessionTracker:
             self._client = httpx.AsyncClient(timeout=30.0)
 
         # Build URL
-        base_url = self.config.exporter_endpoint.replace('/v1/traces', '')
+        base_url = self.config.exporter_endpoint.replace("/v1/traces", "")
         url = f"{base_url}{endpoint}"
 
         # Build headers
-        headers = {
-            'Content-Type': 'application/json'
-        }
+        headers = {"Content-Type": "application/json"}
 
         # Add authentication
         if self.config.exporter_auth:
             auth = self.config.exporter_auth
-            if auth.type == 'bearer':
-                headers['Authorization'] = f"Bearer {auth.token}"
-            elif auth.type == 'apiKey':
-                headers['X-API-Key'] = auth.api_key
-            elif auth.type == 'basic':
+            if auth.type == "bearer":
+                headers["Authorization"] = f"Bearer {auth.token}"
+            elif auth.type == "apiKey":
+                headers["X-API-Key"] = auth.api_key
+            elif auth.type == "basic":
                 import base64
-                credentials = base64.b64encode(
-                    f"{auth.username}:{auth.password}".encode()
-                ).decode()
-                headers['Authorization'] = f"Basic {credentials}"
+
+                credentials = base64.b64encode(f"{auth.username}:{auth.password}".encode()).decode()
+                headers["Authorization"] = f"Basic {credentials}"
 
         # Send request
         response = await self._client.post(url, json=data, headers=headers)

@@ -16,6 +16,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "batch_timeout_ms": 30000,
 }
 
+
 class ConfigValidator:
     """Validator for telemetry configuration."""
 

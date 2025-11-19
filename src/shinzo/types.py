@@ -36,12 +36,7 @@ class TelemetryConfig(BaseModel):
 class ObservabilityInstance(Protocol):
     """Protocol for observability instance."""
 
-    async def start_active_span(
-        self,
-        name: str,
-        attributes: Dict[str, Any],
-        fn: Callable
-    ) -> Any:
+    async def start_active_span(self, name: str, attributes: Dict[str, Any], fn: Callable) -> Any:
         """Start an active span."""
         ...
 

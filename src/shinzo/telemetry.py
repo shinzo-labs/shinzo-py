@@ -19,6 +19,7 @@ from shinzo.sanitizer import PIISanitizer
 from shinzo.utils import generate_uuid
 from shinzo.json_exporter import OTLPJsonSpanExporter, OTLPJsonMetricExporter
 
+
 class TelemetryManager:
     """Manager for OpenTelemetry tracing and metrics."""
 
@@ -44,11 +45,13 @@ class TelemetryManager:
         if self.config.enable_pii_sanitization:
             self.pii_sanitizer = config.pii_sanitizer or PIISanitizer()
 
-        resource = Resource(attributes={
-            ResourceAttributes.SERVICE_NAME: self.config.server_name,
-            ResourceAttributes.SERVICE_VERSION: self.config.server_version,
-            "mcp.session.id": self.session_id,
-        })
+        resource = Resource(
+            attributes={
+                ResourceAttributes.SERVICE_NAME: self.config.server_name,
+                ResourceAttributes.SERVICE_VERSION: self.config.server_version,
+                "mcp.session.id": self.session_id,
+            }
+        )
 
         if self.config.enable_tracing:
             self._init_tracing(resource)
@@ -88,10 +91,7 @@ class TelemetryManager:
         provider.add_span_processor(processor)
         trace.set_tracer_provider(provider)
 
-        self.tracer = trace.get_tracer(
-            self.config.server_name,
-            self.config.server_version
-        )
+        self.tracer = trace.get_tracer(self.config.server_name, self.config.server_version)
 
     def _init_metrics(self, resource: Resource) -> None:
         """Initialize metrics."""
@@ -111,17 +111,9 @@ class TelemetryManager:
         provider = MeterProvider(resource=resource, metric_readers=[reader])
         metrics.set_meter_provider(provider)
 
-        self.meter = metrics.get_meter(
-            self.config.server_name,
-            self.config.server_version
-        )
+        self.meter = metrics.get_meter(self.config.server_name, self.config.server_version)
 
-    async def start_active_span(
-        self,
-        name: str,
-        attributes: Dict[str, Any],
-        fn: Callable
-    ) -> Any:
+    async def start_active_span(self, name: str, attributes: Dict[str, Any], fn: Callable) -> Any:
         """
         Start an active span and execute a function within it.
 
@@ -156,11 +148,7 @@ class TelemetryManager:
         if not self.is_initialized:
             raise RuntimeError("Telemetry not initialized")
 
-        histogram = self.meter.create_histogram(
-            name=name,
-            description=description,
-            unit=unit
-        )
+        histogram = self.meter.create_histogram(name=name, description=description, unit=unit)
 
         def record(value: float, attributes: Optional[Dict[str, Any]] = None) -> None:
             processed_attributes = self._process_telemetry_attributes_with_session_id(
@@ -185,11 +173,7 @@ class TelemetryManager:
         if not self.is_initialized:
             raise RuntimeError("Telemetry not initialized")
 
-        counter = self.meter.create_counter(
-            name=name,
-            description=description,
-            unit=unit
-        )
+        counter = self.meter.create_counter(name=name, description=description, unit=unit)
 
         def increment(value: int, attributes: Optional[Dict[str, Any]] = None) -> None:
             processed_attributes = self._process_telemetry_attributes_with_session_id(
@@ -200,9 +184,7 @@ class TelemetryManager:
         return increment
 
     def get_argument_attributes(
-        self,
-        params: Any,
-        prefix: str = "mcp.request.argument"
+        self, params: Any, prefix: str = "mcp.request.argument"
     ) -> Dict[str, Any]:
         """
         Extract attributes from parameters.
@@ -237,22 +219,18 @@ class TelemetryManager:
         """Record the session duration metric."""
         if self.config.enable_metrics:
             record_histogram = self.get_histogram(
-                "mcp.server.session.duration",
-                "MCP server session duration",
-                "s"
+                "mcp.server.session.duration", "MCP server session duration", "s"
             )
             duration = time.time() - self.session_start
             record_histogram(duration, {"mcp.session.id": self.session_id})
 
     def _process_telemetry_attributes_with_session_id(
-        self,
-        data: Optional[Dict[str, Any]] = None
+        self, data: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Process telemetry attributes and add session ID."""
-        return self.process_telemetry_attributes({
-            "mcp.session.id": self.session_id,
-            **(data or {})
-        })
+        return self.process_telemetry_attributes(
+            {"mcp.session.id": self.session_id, **(data or {})}
+        )
 
     def process_telemetry_attributes(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """

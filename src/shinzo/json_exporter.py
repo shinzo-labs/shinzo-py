@@ -11,6 +11,7 @@ from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
 from opentelemetry.sdk.metrics.export import MetricExporter, MetricExportResult
 from opentelemetry.sdk.metrics.export import MetricsData
 
+
 class OTLPJsonSpanExporter(SpanExporter):
     """Export spans to OTLP backend using JSON format over HTTP."""
 
@@ -38,11 +39,7 @@ class OTLPJsonSpanExporter(SpanExporter):
         payload = self._spans_to_otlp_json(spans)
 
         try:
-            response = self.client.post(
-                self.endpoint,
-                json=payload,
-                headers=self.headers
-            )
+            response = self.client.post(self.endpoint, json=payload, headers=self.headers)
             response.raise_for_status()
             return SpanExportResult.SUCCESS
         except Exception as e:
@@ -58,7 +55,9 @@ class OTLPJsonSpanExporter(SpanExporter):
             # Get resource attributes
             resource_attrs = {}
             if span.resource:
-                resource_attrs = {k: self._value_to_json(v) for k, v in span.resource.attributes.items()}
+                resource_attrs = {
+                    k: self._value_to_json(v) for k, v in span.resource.attributes.items()
+                }
 
             resource_key = json.dumps(resource_attrs, sort_keys=True)
 
@@ -70,13 +69,13 @@ class OTLPJsonSpanExporter(SpanExporter):
                             for k, v in (span.resource.attributes.items() if span.resource else {})
                         ]
                     },
-                    "scopeSpans": []
+                    "scopeSpans": [],
                 }
 
             # Convert span to JSON
             span_json = {
-                "traceId": format(span.context.trace_id, '032x'),
-                "spanId": format(span.context.span_id, '016x'),
+                "traceId": format(span.context.trace_id, "032x"),
+                "spanId": format(span.context.span_id, "016x"),
                 "name": span.name,
                 "kind": span.kind.value if span.kind else 1,
                 "startTimeUnixNano": str(span.start_time),
@@ -85,36 +84,34 @@ class OTLPJsonSpanExporter(SpanExporter):
                     {"key": k, "value": self._attr_value_to_json(v)}
                     for k, v in (span.attributes.items() if span.attributes else {})
                 ],
-                "status": {
-                    "code": span.status.status_code.value if span.status else 0
-                }
+                "status": {"code": span.status.status_code.value if span.status else 0},
             }
 
             # Add parent span ID if present
             if span.parent and span.parent.span_id:
-                span_json["parentSpanId"] = format(span.parent.span_id, '016x')
+                span_json["parentSpanId"] = format(span.parent.span_id, "016x")
 
             # Add to scope spans
             scope_span = {
                 "scope": {
                     "name": span.instrumentation_scope.name if span.instrumentation_scope else "",
-                    "version": span.instrumentation_scope.version if span.instrumentation_scope else ""
+                    "version": (
+                        span.instrumentation_scope.version if span.instrumentation_scope else ""
+                    ),
                 },
-                "spans": [span_json]
+                "spans": [span_json],
             }
 
             resource_spans[resource_key]["scopeSpans"].append(scope_span)
 
-        return {
-            "resourceSpans": list(resource_spans.values())
-        }
+        return {"resourceSpans": list(resource_spans.values())}
 
     def _value_to_json(self, value):
         """Convert attribute value to JSON-serializable format."""
         if isinstance(value, (str, int, float, bool)):
             return value
         elif isinstance(value, bytes):
-            return value.decode('utf-8', errors='replace')
+            return value.decode("utf-8", errors="replace")
         else:
             return str(value)
 
@@ -138,6 +135,7 @@ class OTLPJsonSpanExporter(SpanExporter):
     def force_flush(self, timeout_millis: int = 30000) -> bool:
         """Force flush any pending spans."""
         return True
+
 
 class OTLPJsonMetricExporter(MetricExporter):
     """Export metrics to OTLP backend using JSON format over HTTP."""
@@ -179,7 +177,9 @@ class OTLPJsonMetricExporter(MetricExporter):
         }
         self._preferred_aggregation = {}
 
-    def export(self, metrics_data: MetricsData, timeout_millis: float = 10000) -> MetricExportResult:
+    def export(
+        self, metrics_data: MetricsData, timeout_millis: float = 10000
+    ) -> MetricExportResult:
         """Export metrics to the backend."""
         if not metrics_data or not metrics_data.resource_metrics:
             return MetricExportResult.SUCCESS
@@ -188,11 +188,7 @@ class OTLPJsonMetricExporter(MetricExporter):
         payload = self._metrics_to_otlp_json(metrics_data)
 
         try:
-            response = self.client.post(
-                self.endpoint,
-                json=payload,
-                headers=self.headers
-            )
+            response = self.client.post(self.endpoint, json=payload, headers=self.headers)
             response.raise_for_status()
             return MetricExportResult.SUCCESS
         except Exception as e:
@@ -211,27 +207,27 @@ class OTLPJsonMetricExporter(MetricExporter):
                         for k, v in (rm.resource.attributes.items() if rm.resource else {})
                     ]
                 },
-                "scopeMetrics": []
+                "scopeMetrics": [],
             }
 
             for sm in rm.scope_metrics:
                 scope_json = {
                     "scope": {
                         "name": sm.scope.name if sm.scope else "",
-                        "version": sm.scope.version if sm.scope else ""
+                        "version": sm.scope.version if sm.scope else "",
                     },
-                    "metrics": []
+                    "metrics": [],
                 }
 
                 for metric in sm.metrics:
                     metric_json = {
                         "name": metric.name,
                         "description": metric.description or "",
-                        "unit": metric.unit or ""
+                        "unit": metric.unit or "",
                     }
 
                     # Handle different metric types
-                    if hasattr(metric.data, 'data_points'):
+                    if hasattr(metric.data, "data_points"):
                         data_points = []
                         for dp in metric.data.data_points:
                             dp_json = {
@@ -239,11 +235,11 @@ class OTLPJsonMetricExporter(MetricExporter):
                                 "attributes": [
                                     {"key": k, "value": self._attr_value_to_json(v)}
                                     for k, v in (dp.attributes.items() if dp.attributes else {})
-                                ]
+                                ],
                             }
 
                             # Add value based on metric type
-                            if hasattr(dp, 'value'):
+                            if hasattr(dp, "value"):
                                 if isinstance(dp.value, int):
                                     dp_json["asInt"] = str(dp.value)
                                 else:
@@ -254,11 +250,17 @@ class OTLPJsonMetricExporter(MetricExporter):
                         # Determine metric type
                         metric_type = metric.data.__class__.__name__.lower()
                         if "sum" in metric_type:
-                            metric_json["sum"] = {"dataPoints": data_points, "aggregationTemporality": 2}
+                            metric_json["sum"] = {
+                                "dataPoints": data_points,
+                                "aggregationTemporality": 2,
+                            }
                         elif "gauge" in metric_type:
                             metric_json["gauge"] = {"dataPoints": data_points}
                         elif "histogram" in metric_type:
-                            metric_json["histogram"] = {"dataPoints": data_points, "aggregationTemporality": 2}
+                            metric_json["histogram"] = {
+                                "dataPoints": data_points,
+                                "aggregationTemporality": 2,
+                            }
 
                     scope_json["metrics"].append(metric_json)
 
@@ -266,9 +268,7 @@ class OTLPJsonMetricExporter(MetricExporter):
 
             resource_metrics.append(resource_json)
 
-        return {
-            "resourceMetrics": resource_metrics
-        }
+        return {"resourceMetrics": resource_metrics}
 
     def _attr_value_to_json(self, value):
         """Convert attribute value to OTLP JSON attribute format."""

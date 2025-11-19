@@ -7,20 +7,14 @@ from shinzo.types import TelemetryConfig, AuthConfig
 
 def test_valid_config():
     """Test that a valid configuration passes validation."""
-    config = TelemetryConfig(
-        server_name="test-server",
-        server_version="1.0.0"
-    )
+    config = TelemetryConfig(server_name="test-server", server_version="1.0.0")
     ConfigValidator.validate(config)  # Should not raise
 
 
 def test_missing_server_name():
     """Test that missing server_name raises ValueError."""
     with pytest.raises(ValueError, match="server_name is required"):
-        config = TelemetryConfig(
-            server_name="",
-            server_version="1.0.0"
-        )
+        config = TelemetryConfig(server_name="", server_version="1.0.0")
         ConfigValidator.validate(config)
 
 
@@ -28,9 +22,7 @@ def test_invalid_sampling_rate():
     """Test that invalid sampling_rate raises ValueError."""
     with pytest.raises(ValueError, match="sampling_rate must be between"):
         config = TelemetryConfig(
-            server_name="test-server",
-            server_version="1.0.0",
-            sampling_rate=1.5
+            server_name="test-server", server_version="1.0.0", sampling_rate=1.5
         )
         ConfigValidator.validate(config)
 
@@ -41,7 +33,7 @@ def test_bearer_auth_without_token():
         config = TelemetryConfig(
             server_name="test-server",
             server_version="1.0.0",
-            exporter_auth=AuthConfig(type="bearer")
+            exporter_auth=AuthConfig(type="bearer"),
         )
         ConfigValidator.validate(config)
 
@@ -52,6 +44,6 @@ def test_basic_auth_without_credentials():
         config = TelemetryConfig(
             server_name="test-server",
             server_version="1.0.0",
-            exporter_auth=AuthConfig(type="basic", username="user")
+            exporter_auth=AuthConfig(type="basic", username="user"),
         )
         ConfigValidator.validate(config)

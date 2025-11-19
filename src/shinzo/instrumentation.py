@@ -13,7 +13,10 @@ from shinzo.utils import generate_uuid, get_runtime_info
 
 S_TO_MS = 1000
 
-def instrument_server(server: Any, config: Dict[str, Any] | TelemetryConfig) -> ObservabilityInstance:
+
+def instrument_server(
+    server: Any, config: Dict[str, Any] | TelemetryConfig
+) -> ObservabilityInstance:
     """
     Instrument an MCP server with OpenTelemetry.
 
@@ -33,20 +36,18 @@ def instrument_server(server: Any, config: Dict[str, Any] | TelemetryConfig) -> 
 
     return ObservabilityInstanceImpl(telemetry_manager, instrumentation)
 
+
 class ObservabilityInstanceImpl:
     """Implementation of the observability instance."""
 
-    def __init__(self, telemetry_manager: TelemetryManager, instrumentation: 'McpServerInstrumentation'):
+    def __init__(
+        self, telemetry_manager: TelemetryManager, instrumentation: "McpServerInstrumentation"
+    ):
         """Initialize with a telemetry manager and instrumentation."""
         self.telemetry_manager = telemetry_manager
         self.instrumentation = instrumentation
 
-    async def start_active_span(
-        self,
-        name: str,
-        attributes: Dict[str, Any],
-        fn: Callable
-    ) -> Any:
+    async def start_active_span(self, name: str, attributes: Dict[str, Any], fn: Callable) -> Any:
         """Start an active span."""
         return await self.telemetry_manager.start_active_span(name, attributes, fn)
 
@@ -66,6 +67,7 @@ class ObservabilityInstanceImpl:
         """Shutdown the observability instance."""
         await self.telemetry_manager.shutdown()
 
+
 class McpServerInstrumentation:
     """Instrumentation for MCP servers."""
 
@@ -83,9 +85,7 @@ class McpServerInstrumentation:
         self.session_tracker: Optional[SessionTracker] = None
 
     async def enable_session_tracking(
-        self,
-        resource_uuid: str,
-        metadata: Optional[Dict[str, Any]] = None
+        self, resource_uuid: str, metadata: Optional[Dict[str, Any]] = None
     ) -> None:
         """
         Enable session tracking for debugging and replay.
@@ -95,10 +95,7 @@ class McpServerInstrumentation:
             metadata: Optional metadata to attach to the session
         """
         if not self.session_tracker:
-            self.session_tracker = SessionTracker(
-                self.telemetry_manager.config,
-                resource_uuid
-            )
+            self.session_tracker = SessionTracker(self.telemetry_manager.config, resource_uuid)
             await self.session_tracker.start(metadata)
 
     def get_session_tracker(self) -> Optional[SessionTracker]:
@@ -136,15 +133,12 @@ class McpServerInstrumentation:
 
         def instrumented_tool():
             """Instrumented FastMCP tool decorator."""
+
             def decorator(f: Callable) -> Callable:
                 tool_name = f.__name__
-                wrapped_func = self._create_instrumented_handler(
-                    f,
-                    "tools/call",
-                    tool_name
-                )
+                wrapped_func = self._create_instrumented_handler(f, "tools/call", tool_name)
                 return original_tool()(wrapped_func)
-            
+
             return decorator
 
         self.server.tool = instrumented_tool
@@ -156,23 +150,18 @@ class McpServerInstrumentation:
         @functools.wraps(original_call_tool)
         def instrumented_call_tool(*, validate_input: bool = True):
             """Instrumented tool decorator."""
+
             def decorator(func: Callable) -> Callable:
                 tool_name = func.__name__
-                wrapped_func = self._create_instrumented_handler(
-                    func,
-                    "tools/call",
-                    tool_name
-                )
+                wrapped_func = self._create_instrumented_handler(func, "tools/call", tool_name)
                 return original_call_tool(validate_input=validate_input)(wrapped_func)
+
             return decorator
 
         self.server.call_tool = instrumented_call_tool
 
     def _create_instrumented_handler(
-        self,
-        original_handler: Callable,
-        method: str,
-        name: str
+        self, original_handler: Callable, method: str, name: str
     ) -> Callable:
         """
         Create an instrumented handler for MCP operations.
@@ -187,40 +176,52 @@ class McpServerInstrumentation:
         """
         runtime_info = get_runtime_info()
 
-        base_attributes = {
-            "mcp.method.name": method,
-            "mcp.tool.name": name
-        }
+        base_attributes = {"mcp.method.name": method, "mcp.tool.name": name}
 
         record_histogram = self.telemetry_manager.get_histogram(
-            "mcp.server.operation.duration",
-            "MCP request or notification duration",
-            "ms"
+            "mcp.server.operation.duration", "MCP request or notification duration", "ms"
         )
 
         increment_counter = self.telemetry_manager.get_increment_counter(
             f"mcp.server.{method.replace('/', '.').replace(' ', '_')}.{name.replace(' ', '_')}",
             "MCP request or notification count",
-            "calls"
+            "calls",
         )
 
         is_async = inspect.iscoroutinefunction(original_handler)
 
         if is_async:
+
             @functools.wraps(original_handler)
             async def instrumented_handler(*args: Any, **kwargs: Any) -> Any:
                 """Instrumented async handler."""
                 return await self._execute_instrumented_call(
-                    original_handler, args, kwargs, base_attributes, 
-                    increment_counter, record_histogram, method, name, True
+                    original_handler,
+                    args,
+                    kwargs,
+                    base_attributes,
+                    increment_counter,
+                    record_histogram,
+                    method,
+                    name,
+                    True,
                 )
+
         else:
+
             @functools.wraps(original_handler)
             async def instrumented_handler(*args: Any, **kwargs: Any) -> Any:
                 """Instrumented sync handler wrapper."""
                 return await self._execute_instrumented_call(
-                    original_handler, args, kwargs, base_attributes,
-                    increment_counter, record_histogram, method, name, False
+                    original_handler,
+                    args,
+                    kwargs,
+                    base_attributes,
+                    increment_counter,
+                    record_histogram,
+                    method,
+                    name,
+                    False,
                 )
 
         return instrumented_handler
@@ -235,11 +236,11 @@ class McpServerInstrumentation:
         record_histogram: Callable,
         method: str,
         name: str,
-        is_async: bool
+        is_async: bool,
     ) -> Any:
         """Execute an instrumented call with telemetry."""
         runtime_info = get_runtime_info()
-        
+
         span_attributes = {
             **base_attributes,
             "mcp.request.id": generate_uuid(),
@@ -254,9 +255,7 @@ class McpServerInstrumentation:
         else:
             params = kwargs
 
-        span_attributes.update(
-            self.telemetry_manager.get_argument_attributes(params)
-        )
+        span_attributes.update(self.telemetry_manager.get_argument_attributes(params))
 
         async def span_fn(span: Any) -> Any:
             increment_counter(1)
@@ -272,8 +271,12 @@ class McpServerInstrumentation:
                         timestamp=start_timestamp,
                         event_type=EventType.TOOL_CALL,
                         tool_name=name,
-                        input_data=params if self.telemetry_manager.config.enable_argument_collection else None,
-                        metadata={"method": method}
+                        input_data=(
+                            params
+                            if self.telemetry_manager.config.enable_argument_collection
+                            else None
+                        ),
+                        metadata={"method": method},
                     )
                 )
 
@@ -291,9 +294,13 @@ class McpServerInstrumentation:
                             timestamp=datetime.now(),
                             event_type=EventType.TOOL_RESPONSE,
                             tool_name=name,
-                            output_data=result if self.telemetry_manager.config.enable_argument_collection else None,
+                            output_data=(
+                                result
+                                if self.telemetry_manager.config.enable_argument_collection
+                                else None
+                            ),
                             duration_ms=duration_ms,
-                            metadata={"method": method}
+                            metadata={"method": method},
                         )
                     )
             except Exception as e:
@@ -311,10 +318,12 @@ class McpServerInstrumentation:
                             error_data={
                                 "message": str(e),
                                 "type": type(e).__name__,
-                                "traceback": str(e.__traceback__) if hasattr(e, '__traceback__') else None
+                                "traceback": (
+                                    str(e.__traceback__) if hasattr(e, "__traceback__") else None
+                                ),
                             },
                             duration_ms=duration_ms,
-                            metadata={"method": method}
+                            metadata={"method": method},
                         )
                     )
 
@@ -333,7 +342,5 @@ class McpServerInstrumentation:
             return result
 
         return await self.telemetry_manager.start_active_span(
-            f"{method} {name}",
-            span_attributes,
-            span_fn
+            f"{method} {name}", span_attributes, span_fn
         )

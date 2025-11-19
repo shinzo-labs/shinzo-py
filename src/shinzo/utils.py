@@ -18,7 +18,4 @@ def get_runtime_info() -> Dict[str, any]:
     except Exception:
         address = "unknown"
 
-    return {
-        "address": address,
-        "port": None  # Port may not be applicable for stdio MCP servers
-    }
+    return {"address": address, "port": None}  # Port may not be applicable for stdio MCP servers
