@@ -4,11 +4,50 @@ Complete Observability for MCP servers in Python.
 
 ## Installation
 
+The Shinzo Python SDK works with any MCP server implementation. Simply install the base package:
+
 ```bash
 pip install shinzo
 ```
 
 ## Quick Start
+
+Choose the example that matches your MCP SDK:
+
+### FastMCP Example
+
+```python
+from mcp.server.fastmcp import FastMCP
+from shinzo import instrument_server
+
+# Create FastMCP server
+mcp = FastMCP(name="my-mcp-server")
+
+# Instrument it with Shinzo
+observability = instrument_server(
+    mcp,
+    config={
+        "server_name": "my-mcp-server",
+        "server_version": "1.0.0",
+        "exporter_auth": {
+            "type": "bearer",
+            "token": "your-api-token"
+        }
+    }
+)
+
+# Define your tools
+@mcp.tool()
+def get_weather(city: str) -> str:
+    """Get weather for a city."""
+    return f"Weather for {city}: Sunny"
+
+# Run the server
+if __name__ == "__main__":
+    mcp.run()
+```
+
+###  MCP SDK Example
 
 ```python
 from mcp.server import Server
@@ -40,9 +79,20 @@ async def shutdown():
     await observability.shutdown()
 ```
 
+## SDK Compatibility
+
+Shinzo automatically detects and instruments your MCP server regardless of which SDK you use:
+
+| SDK | Detection Method | Decorator | Use Case |
+|-----|-----------------|-----------|----------|
+| **FastMCP** | `server.tool` attribute | `@mcp.tool()` | Simpler API, modern Python patterns, recommended for new projects |
+| **Traditional MCP** | `server.call_tool` attribute | `@server.call_tool()` | Standard MCP specification, more configuration options |
+
+Both SDKs receive the same comprehensive instrumentation with no additional configuration needed.
+
 ## Features
 
-- 🔍 **Automatic Instrumentation** - Zero-code changes for basic tracing
+- 🔍 **Automatic Instrumentation** - Zero-code changes for basic tracing across both FastMCP and Traditional MCP
 - 📊 **Rich Metrics** - Track request duration, error rates, and custom metrics
 - 🔐 **PII Sanitization** - Built-in sensitive data protection
 - 🎯 **Session Tracking** - Correlate all requests in a user session
