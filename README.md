@@ -1,10 +1,25 @@
-# Shinzo Python SDK
-
-Complete Observability for MCP servers in Python.
+<a id="readme-top"></a>
+<div align="center">
+    <a href="https://github.com/shinzo-labs/shinzo-py"><img src="https://github.com/user-attachments/assets/64f5e0ae-6924-41b1-b1da-1b22627e5c43" alt="Logo" width="256" height="256"></a>
+    <h1 align="center">
+        Shinzo Python SDK: Complete Observability for MCP Servers
+    </h1>
+    <p align=center>
+        <a href="https://github.com/shinzo-labs/shinzo-py/stargazers"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.github.com%2Frepos%2Fshinzo-labs%2Fshinzo-py%2Fstargazers&query=%24.length&logo=github&label=stars&color=e3b341" alt="Stars"></a>
+        <a href="https://github.com/shinzo-labs/shinzo-py/forks"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.github.com%2Frepos%2Fshinzo-labs%2Fshinzo-py%2Fforks&query=%24.length&logo=github&label=forks&color=8957e5" alt="Forks"></a>
+        <a href="https://github.com/shinzo-labs/shinzo-py/pulls"><img src="https://img.shields.io/badge/build-passing-green" alt="Build"></a>
+        <a href="https://github.com/shinzo-labs/shinzo-py/graphs/contributors"><img src="https://img.shields.io/badge/contributors-welcome-339933?logo=github" alt="contributors welcome"></a>
+        <a href="https://discord.gg/UYUdSdp5N8"><img src="https://discord-live-members-count-badge.vercel.app/api/discord-members?guildId=1079318797590216784" alt="Discord"></a>
+    </p>
+    The SDK provides OpenTelemetry-compatible instrumentation for Python MCP servers. Gain insight into agent usage patterns, contextualize tool calls, and analyze performance of your servers across platforms. Instrumentation can be installed in servers in just a few steps with an emphasis on ease of use and flexibility.
+    <p align=center>
+        <a href="https://docs.shinzo.ai/sdk/python/installation"><strong>Explore the docs »</strong></a>
+    </p>
+</div>
 
 ## Installation
 
-The Shinzo Python SDK works with any MCP server implementation. Simply install the base package:
+The Shinzo Python instrumentation library works with Python MCP servers built with the core MCP SDK or FastMCP. Simply install the base package:
 
 ```bash
 pip install shinzo
