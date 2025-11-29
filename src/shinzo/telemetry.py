@@ -1,6 +1,7 @@
 """Telemetry management for MCP servers."""
 
 import base64
+import sys
 import time
 from typing import Any, Callable, Dict, Optional
 
@@ -85,7 +86,7 @@ class TelemetryManager:
     def _init_tracing(self, resource: Resource) -> None:
         """Initialize tracing."""
         if self.config.exporter_type == "console":
-            exporter: Any = ConsoleSpanExporter()
+            exporter: Any = ConsoleSpanExporter(out=sys.stderr)
         else:
             headers = self._get_otlp_headers()
             endpoint = self.config.exporter_endpoint
@@ -105,7 +106,7 @@ class TelemetryManager:
     def _init_metrics(self, resource: Resource) -> None:
         """Initialize metrics."""
         if self.config.exporter_type == "console":
-            exporter: Any = ConsoleMetricExporter()
+            exporter: Any = ConsoleMetricExporter(out=sys.stderr)
         else:
             headers = self._get_otlp_headers()
             endpoint = self.config.exporter_endpoint

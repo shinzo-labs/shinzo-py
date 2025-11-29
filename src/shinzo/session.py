@@ -1,6 +1,7 @@
 """Session tracking for MCP server interactions."""
 
 import asyncio
+import sys
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
@@ -85,7 +86,7 @@ class SessionTracker:
                 # Start periodic flush task
                 self.flush_task = asyncio.create_task(self._periodic_flush())
         except Exception as e:
-            print(f"Failed to start session tracking: {e}")
+            print(f"Failed to start session tracking: {e}", file=sys.stderr)
 
     def add_event(self, event: SessionEvent) -> None:
         """
@@ -128,7 +129,7 @@ class SessionTracker:
                     },
                 )
         except Exception as e:
-            print(f"Failed to flush session events: {e}")
+            print(f"Failed to flush session events: {e}", file=sys.stderr)
             # Re-add events to queue if flush failed
             self.event_queue = events_to_send + self.event_queue
 
@@ -156,7 +157,7 @@ class SessionTracker:
 
             self.is_active = False
         except Exception as e:
-            print(f"Failed to complete session: {e}")
+            print(f"Failed to complete session: {e}", file=sys.stderr)
         finally:
             if self._client:
                 await self._client.aclose()

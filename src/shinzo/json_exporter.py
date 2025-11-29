@@ -4,6 +4,7 @@ import json
 from typing import Any, Dict, List, Optional, Sequence
 from urllib.parse import urljoin
 
+import sys
 import httpx
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
@@ -42,7 +43,7 @@ class OTLPJsonSpanExporter(SpanExporter):
             response.raise_for_status()
             return SpanExportResult.SUCCESS
         except Exception as e:
-            print(f"Failed to export spans: {e}")
+            print(f"Failed to export spans: {e}", file=sys.stderr)
             return SpanExportResult.FAILURE
 
     def _spans_to_otlp_json(self, spans: Sequence[ReadableSpan]) -> Dict[str, Any]:
@@ -192,7 +193,7 @@ class OTLPJsonMetricExporter(MetricExporter):
             response.raise_for_status()
             return MetricExportResult.SUCCESS
         except Exception as e:
-            print(f"Failed to export metrics: {e}")
+            print(f"Failed to export metrics: {e}", file=sys.stderr)
             return MetricExportResult.FAILURE
 
     def _metrics_to_otlp_json(self, metrics_data: MetricsData) -> Dict[str, Any]:
