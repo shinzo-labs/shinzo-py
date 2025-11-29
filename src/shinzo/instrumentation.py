@@ -131,7 +131,7 @@ class McpServerInstrumentation:
         """Instrument FastMCP tool calls."""
         original_tool = self.server.tool
 
-        def instrumented_tool(*args, **kwargs) -> Callable[[Callable], Callable]:
+        def instrumented_tool(*args: Any, **kwargs: Any) -> Callable[[Callable], Callable]:
             """Instrumented FastMCP tool decorator."""
 
             def decorator(f: Callable) -> Callable:
