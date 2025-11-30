@@ -1,0 +1,13 @@
+{
+  "name": "shinzo-py",
+  "version": "1.0.3",
+  "private": true,
+  "description": "Shinzo Python SDK: Complete Observability for MCP Servers",
+  "scripts": {
+    "changeset": "changeset",
+    "version": "changeset version"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.27.1"
+  }
+}

@@ -4,12 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "shinzo"
-version = "1.0.2"
+version = "1.0.3"
 description = "Complete Observability for MCP servers"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
-authors = [
+maintainers = [
     {name = "Austin Born", email = "austin@shinzolabs.com"}
 ]
 keywords = [

@@ -48,3 +48,13 @@ Thumbs.db
 # Project specific
 *.log
 .env
+
+# Changeset
+changeset-status.json
+release_body.tmp
+
+# Node (for changesets CLI only)
+node_modules/
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
