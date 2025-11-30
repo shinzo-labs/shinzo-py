@@ -1,6 +1,6 @@
 {
   "name": "shinzo-py",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "private": true,
   "description": "Shinzo Python SDK: Complete Observability for MCP Servers",
   "scripts": {
