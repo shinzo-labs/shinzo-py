@@ -17,6 +17,8 @@ class EventType(str, Enum):
 
     TOOL_CALL = "tool_call"
     TOOL_RESPONSE = "tool_response"
+    RESOURCE_LIST = "resource_list"
+    RESOURCE_READ = "resource_read"
     ERROR = "error"
     USER_INPUT = "user_input"
     SYSTEM_MESSAGE = "system_message"
@@ -29,6 +31,7 @@ class SessionEvent:
     timestamp: datetime
     event_type: EventType
     tool_name: Optional[str] = None
+    resource_uri: Optional[str] = None
     input_data: Optional[Dict[str, Any]] = None
     output_data: Optional[Dict[str, Any]] = None
     error_data: Optional[Dict[str, Any]] = None
@@ -120,6 +123,7 @@ class SessionTracker:
                         "timestamp": event.timestamp.isoformat(),
                         "event_type": event.event_type.value,
                         "tool_name": event.tool_name,
+                        "resource_uri": event.resource_uri,
                         "input_data": event.input_data,
                         "output_data": event.output_data,
                         "error_data": event.error_data,
