@@ -1,14 +1,56 @@
-name: CI
+name: On PR for Feature Branch
 
 on:
   pull_request:
-    branches:
-      - main
-  push:
-    branches:
-      - main
+    branches-ignore:
+      - changeset-release/main
+
+env:
+  UPSTREAM_BRANCH: origin/${{ github.base_ref }}
+
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}-checks
+  cancel-in-progress: true
 
 jobs:
+  check-changeset:
+    name: Check for changeset
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch base branch
+        run: git fetch origin main:refs/remotes/origin/main
+
+      - name: Setup Node.js (for changesets CLI)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install pnpm
+        run: npm install -g pnpm
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Check for changeset
+        run: pnpm changeset status --since=origin/main
+
+  validate-no-version-change:
+    name: Validate version has not changed
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run validation script
+        run: .github/scripts/validate-no-version-change.sh
+
   test:
     name: Test Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest
