@@ -20,7 +20,7 @@ if [ "$current_version" != "$base_version" ]; then
   echo "Base branch version: $base_version"
   echo "PR version: $current_version"
   echo ""
-  echo "Please use 'npx changeset' to manage version bumps instead of manually editing pyproject.toml"
+  echo "Please use 'pnpm changeset' to manage version bumps instead of manually editing pyproject.toml"
   exit 1
 fi
 

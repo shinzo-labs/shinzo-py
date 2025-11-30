@@ -75,11 +75,12 @@ jobs:
       - name: Get next version from changesets
         id: get-next-version
         run: |
-          # Install changesets CLI
-          npm install -g @changesets/cli
+          # Install pnpm and dependencies
+          npm install -g pnpm
+          pnpm install
 
           # Get the next version
-          npx changeset status --output=changeset-status.json || echo '{"releases":[]}' > changeset-status.json
+          pnpm changeset status --output=changeset-status.json || echo '{"releases":[]}' > changeset-status.json
 
           # Parse the version (if available)
           if [ -f changeset-status.json ]; then

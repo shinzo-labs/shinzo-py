@@ -16,10 +16,10 @@ When making changes that should trigger a release, add a changeset to your PR:
 
 ```bash
 # Install dependencies (first time only)
-npm install
+pnpm install
 
 # Create a changeset
-npx changeset
+pnpm changeset
 ```
 
 This will prompt you to:
@@ -37,7 +37,7 @@ The changeset will be saved as a markdown file in `.changeset/` and should be co
 
 When you open a PR to `main`, the following checks run:
 
-- **Changeset validation**: Ensures a changeset is present (using `npx @changesets/cli status`)
+- **Changeset validation**: Ensures a changeset is present (using `pnpm changeset status`)
 - **Version validation**: Ensures `pyproject.toml` version hasn't been manually changed
 - **Tests**: Runs tests across Python 3.10, 3.11, and 3.12
 - **Linting**: Runs Black, Ruff, and MyPy
@@ -85,7 +85,7 @@ However, **this bypasses the changelog generation** and is not recommended. Alwa
 ### "No changesets found" error on PR
 
 Make sure you've:
-1. Run `npx changeset` and committed the generated `.changeset/*.md` file
+1. Run `pnpm changeset` and committed the generated `.changeset/*.md` file
 2. The changeset file is not named `README.md` or `config.json`
 
 ### Version validation fails
@@ -118,10 +118,10 @@ git checkout -b feature/add-cool-feature
 # ... edit files ...
 
 # 3. Install dependencies (first time)
-npm install
+pnpm install
 
 # 4. Create a changeset
-npx changeset
+pnpm changeset
 # Select "minor" for a new feature
 # Write: "Add cool new feature for doing X"
 

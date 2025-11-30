@@ -7,7 +7,7 @@ This directory contains changesets for managing releases of the shinzo-py Python
 When making changes that should trigger a release, run:
 
 ```bash
-npx changeset
+pnpm changeset
 ```
 
 This will guide you through creating a changeset file that describes:
