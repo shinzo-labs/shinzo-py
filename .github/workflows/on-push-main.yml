@@ -1,0 +1,198 @@
+name: On Push to Main Branch
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: deployment
+  cancel-in-progress: true
+
+jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version_changed: ${{ steps.version-check.outputs.changed }}
+      current_version: ${{ steps.version-check.outputs.current_version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check if version changed
+        id: version-check
+        run: |
+          current_version=$(grep -E '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+          base_version=$(git show HEAD^:pyproject.toml | grep -E '^version = ' | sed 's/version = "\(.*\)"/\1/')
+
+          echo "current_version=$current_version" >> $GITHUB_OUTPUT
+
+          if [ "$current_version" != "$base_version" ]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "Version changed from $base_version to $current_version"
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "Version unchanged: $current_version"
+          fi
+
+  check-changesets:
+    runs-on: ubuntu-latest
+    outputs:
+      hasChangesets: ${{ steps.changeset-check.outputs.hasChangesets }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for changesets
+        id: changeset-check
+        run: |
+          if [ -n "$(ls .changeset/*.md 2>/dev/null | grep -v 'README.md' | grep -v 'config.json')" ]; then
+            echo "hasChangesets=true" >> $GITHUB_OUTPUT
+            echo "Found changesets - will create/update release PR"
+          else
+            echo "hasChangesets=false" >> $GITHUB_OUTPUT
+            echo "No changesets found"
+          fi
+
+  create-release-pr:
+    name: Create or update Release PR
+    runs-on: ubuntu-latest
+    needs: [check-version, check-changesets]
+    if: needs.check-changesets.outputs.hasChangesets == 'true' && needs.check-version.outputs.version_changed == 'false'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js (for changesets)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Get next version from changesets
+        id: get-next-version
+        run: |
+          # Install changesets CLI
+          npm install -g @changesets/cli
+
+          # Get the next version
+          npx changeset status --output=changeset-status.json || echo '{"releases":[]}' > changeset-status.json
+
+          # Parse the version (if available)
+          if [ -f changeset-status.json ]; then
+            next_version=$(node -e "
+              const fs = require('fs');
+              const status = JSON.parse(fs.readFileSync('changeset-status.json', 'utf8'));
+              const releases = status.releases || [];
+
+              if (releases.length > 0) {
+                console.log(releases[0].newVersion || 'unknown');
+              } else {
+                console.log('unknown');
+              }
+            ")
+            echo "next_version=$next_version" >> $GITHUB_OUTPUT
+            echo "Next version will be: $next_version"
+          fi
+
+      - name: Create or update Release PR
+        uses: changesets/action@v1
+        with:
+          publish: false
+          title: "Release v${{ steps.get-next-version.outputs.next_version }}"
+          commit: "Version packages"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update pyproject.toml version
+        if: steps.get-next-version.outputs.next_version != 'unknown'
+        run: |
+          # Checkout the release branch
+          git fetch origin
+          release_branch=$(git branch -r | grep 'changeset-release/main' | sed 's/origin\///' | xargs)
+
+          if [ -n "$release_branch" ]; then
+            git checkout $release_branch
+
+            # Update the version
+            export NEW_VERSION="${{ steps.get-next-version.outputs.next_version }}"
+            .github/scripts/update-python-version.sh
+
+            # Commit the change
+            git config --global user.email "github-actions[bot]@users.noreply.github.com"
+            git config --global user.name "github-actions[bot]"
+            git add pyproject.toml
+
+            if ! git diff --staged --quiet; then
+              git commit -m "Update pyproject.toml version to $NEW_VERSION"
+              git push origin $release_branch
+              echo "✅ Updated pyproject.toml version to $NEW_VERSION"
+            else
+              echo "No version changes needed"
+            fi
+          fi
+
+  publish-to-pypi:
+    name: Publish to PyPI and create GitHub release
+    runs-on: ubuntu-latest
+    needs: [check-version]
+    if: needs.check-version.outputs.version_changed == 'true'
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+
+      - name: Build package
+        run: python -m build
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
+
+      - name: Get release version and body
+        id: get-release-info
+        run: |
+          version="${{ needs.check-version.outputs.current_version }}"
+          echo "version=$version" >> $GITHUB_OUTPUT
+
+          # Try to get PR body from the merged release PR
+          pr_body=$(gh pr list --search "$(git rev-parse HEAD)" --state merged --json number,body --jq '.[0].body // ""')
+
+          if [ -n "$pr_body" ]; then
+            # Extract the changelog section if it exists
+            changelog=$(echo "$pr_body" | sed -n '/# Releases/,/---/p' || echo "$pr_body")
+            echo "$changelog" > release_body.tmp
+          else
+            echo "Release version $version" > release_body.tmp
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.get-release-info.outputs.version }}
+          name: Release v${{ steps.get-release-info.outputs.version }}
+          body_path: release_body.tmp
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
