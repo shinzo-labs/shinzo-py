@@ -23,8 +23,9 @@ jobs:
       - name: Check if version changed
         id: version-check
         run: |
-          current_version=$(grep -E '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
-          base_version=$(git show HEAD^:pyproject.toml | grep -E '^version = ' | sed 's/version = "\(.*\)"/\1/')
+          # Extract version from [project] section only (avoiding [tool.commitizen] version)
+          current_version=$(awk '/^\[project\]/{flag=1; next} /^\[/{flag=0} flag && /^version = /{gsub(/version = "|"/, ""); print; exit}' pyproject.toml | tr -d '[:space:]')
+          base_version=$(git show HEAD^:pyproject.toml | awk '/^\[project\]/{flag=1; next} /^\[/{flag=0} flag && /^version = /{gsub(/version = "|"/, ""); print; exit}' | tr -d '[:space:]')
 
           echo "current_version=$current_version" >> $GITHUB_OUTPUT
 
