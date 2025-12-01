@@ -23,7 +23,7 @@ Once you have been assigned an issue, the steps to contribute are:
 2. Open a branch with a name prefixed with `feat/`, `fix/`, or `chore/` depending on the nature of the change. Use your best judgement when deciding on the prefix.
 3. Implement the desired changes.
 4. Add tests to any relevant test suites to validate functionality.
-5. Commit your changes using [Conventional Commits](https://www.conventionalcommits.org/) format. See the [Version Management](#version-management) section below for details on commit message format.
+5. Commit your changes using `cz commit`. See the [Version Management](#version-management) section below for details on commit message format.
 6. Open a Pull Request from your forked repo back to the main repo. Tag one of the core contributors as a reviewer.
 7. Once the core contributor has reviewed the code and all comments have been resolved, the PR will be approved and merged into the `main` branch.
 8. When your PR is merged, your conventional commit messages will be used to automatically create a release PR with proper version bumps and changelogs. Once the release PR is merged, updated packages will be published to PyPI automatically.
@@ -32,9 +32,20 @@ Once you have been assigned an issue, the steps to contribute are:
 
 This project uses [Commitizen](https://commitizen-tools.github.io/commitizen/) to manage versioning and publishing of the Python package.
 
-#### Conventional Commits
+#### Commit Helper
 
-All commit messages **must** follow the [Conventional Commits](https://www.conventionalcommits.org/) specification. This format enables automatic semantic versioning and changelog generation.
+Use the `cz commit` command to create a commit message. This will guide you through creating a properly formatted commit message. All commit messages **must** follow the [Conventional Commits](https://www.conventionalcommits.org/) specification, which the `cz commit` command will enforce. This format enables automatic semantic versioning and changelog generation.
+
+```bash
+# Install dev dependencies first
+pip install -e ".[dev]"
+
+# Use interactive commit
+cz commit
+
+# Or use the shorter alias
+cz c
+```
 
 #### Commit Message Format
 
@@ -57,47 +68,12 @@ All commit messages **must** follow the [Conventional Commits](https://www.conve
 
 **Scopes (optional):** Helps categorize commits (e.g., `instrumentation`, `config`, `exporters`)
 
-#### Breaking Changes
-
-To trigger a MAJOR version bump (e.g., 1.0.0 → 2.0.0), include `BREAKING CHANGE:` in the footer or add `!` after the type:
+To trigger a MAJOR version bump (e.g., 1.0.0 → 2.0.0), add `!` after the type in your commit message.
 
 ```bash
 feat!: redesign configuration API
 
 BREAKING CHANGE: Configuration now uses a class-based approach instead of dictionaries.
-```
-
-#### Examples
-
-```bash
-# Feature - Minor bump
-git commit -m "feat(instrumentation): add support for custom exporters"
-
-# Bug fix - Patch bump
-git commit -m "fix(config): correct validation for sampling rate"
-
-# Documentation - No version bump
-git commit -m "docs: update installation instructions"
-
-# Breaking change - Major bump
-git commit -m "feat!: remove deprecated authentication methods
-
-BREAKING CHANGE: BasicAuth has been removed. Use BearerAuth instead."
-```
-
-#### Interactive Commit Helper
-
-For easier commit message creation, use commitizen's interactive mode:
-
-```bash
-# Install dev dependencies first
-pip install -e ".[dev]"
-
-# Use interactive commit
-cz commit
-
-# Or use the shorter alias
-cz c
 ```
 
 This will guide you through creating a properly formatted commit message.
