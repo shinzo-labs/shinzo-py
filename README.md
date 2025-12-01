@@ -166,4 +166,8 @@ The test suite validates:
 
 ## License
 
-MIT License - see [LICENSE](./LICENSE.md) file for details
+This package is distributed under the [MIT License](./LICENSE.md).
+
+## Contributing
+
+Contributions are welcome! Please see the [Contributing Guide](./CONTRIBUTING.md) for more information.
