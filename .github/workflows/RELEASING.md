@@ -89,7 +89,7 @@ When your PR is merged to `main`:
 ## Release PR
 
 The Release PR will:
-- Have the branch name `release/automated`
+- Have the branch name `changeset-release/main`
 - Update `pyproject.toml` with the new version
 - Generate/update CHANGELOG.md with changes from commit messages
 - Show all changes that will be included in the release
