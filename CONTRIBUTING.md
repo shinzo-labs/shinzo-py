@@ -23,52 +23,76 @@ Once you have been assigned an issue, the steps to contribute are:
 2. Open a branch with a name prefixed with `feat/`, `fix/`, or `chore/` depending on the nature of the change. Use your best judgement when deciding on the prefix.
 3. Implement the desired changes.
 4. Add tests to any relevant test suites to validate functionality.
-5. Create a changeset for your changes by running `pnpm changeset` from the root of the repository. This will prompt you to select which packages are affected and describe the changes. Choose the appropriate version bump type (patch, minor, or major) based on semantic versioning principles.
+5. Commit your changes using `cz commit`. See the [Version Management](#version-management) section below for details on commit message format.
 6. Open a Pull Request from your forked repo back to the main repo. Tag one of the core contributors as a reviewer.
 7. Once the core contributor has reviewed the code and all comments have been resolved, the PR will be approved and merged into the `main` branch.
-8. When your PR is merged, the changeset will be used to automatically create a release PR with proper version bumps and changelogs. Once the release PR is merged, updated packages will be published to PyPI automatically.
+8. When your PR is merged, your conventional commit messages will be used to automatically create a release PR with proper version bumps and changelogs. Once the release PR is merged, updated packages will be published to PyPI automatically.
 
 ### Version Management
 
-This project uses [Changesets](https://github.com/changesets/changesets) to manage versioning and publishing of the Python package.
+This project uses [Commitizen](https://commitizen-tools.github.io/commitizen/) to manage versioning and publishing of the Python package.
 
-#### Version Strategy
+#### Commit Helper
 
-- **Root Package (`package.json`)**: Version tracks the current release version. This is a private coordination package that handles build/dev tooling and is never published to npm.
-- **Python Package (`pyproject.toml`)**: Managed exclusively via changesets. This is the package published to PyPI with automatic versioning.
+Use the `cz commit` command to create a commit message. This will guide you through creating a properly formatted commit message. All commit messages **must** follow the [Conventional Commits](https://www.conventionalcommits.org/) specification, which the `cz commit` command will enforce. This format enables automatic semantic versioning and changelog generation.
 
-#### Creating a Changeset
-
-When you make changes that should trigger a new release, run:
 ```bash
-pnpm changeset
+# Install dev dependencies first
+pip install -e ".[dev]"
+
+# Use interactive commit
+cz commit
+
+# Or use the shorter alias
+cz c
 ```
 
-This will:
-1. Ask you to select which packages are affected by your changes
-2. Prompt you to choose the version bump type (patch, minor, or major)
-3. Ask for a description of the changes
-4. Generate a changeset file in `.changeset/`
+#### Commit Message Format
+
+```
+<type>(<scope>): <subject>
+
+[optional body]
+
+[optional footer]
+```
+
+**Types:**
+- **feat**: A new feature (triggers MINOR version bump, e.g., 1.0.0 → 1.1.0)
+- **fix**: A bug fix (triggers PATCH version bump, e.g., 1.0.0 → 1.0.1)
+- **docs**: Documentation only changes
+- **style**: Code style changes (formatting, missing semicolons, etc.)
+- **refactor**: Code refactoring without adding features or fixing bugs
+- **test**: Adding or updating tests
+- **chore**: Changes to build process or auxiliary tools
+
+**Scopes (optional):** Helps categorize commits (e.g., `instrumentation`, `config`, `exporters`)
+
+To trigger a MAJOR version bump (e.g., 1.0.0 → 2.0.0), add `!` after the type in your commit message.
+
+```bash
+feat!: redesign configuration API
+
+BREAKING CHANGE: Configuration now uses a class-based approach instead of dictionaries.
+```
+
+This will guide you through creating a properly formatted commit message.
 
 #### Version Bump Guidelines
 
-Follow semantic versioning:
-- **Patch** (1.0.0 → 1.0.1): Bug fixes, small improvements
-- **Minor** (1.0.0 → 1.1.0): New features, non-breaking changes
-- **Major** (1.0.0 → 2.0.0): Breaking changes
+Commitizen automatically determines the version bump based on commit types:
+- **feat** commits → MINOR bump (1.0.0 → 1.1.0)
+- **fix** commits → PATCH bump (1.0.0 → 1.0.1)
+- **BREAKING CHANGE** or `!` → MAJOR bump (1.0.0 → 2.0.0)
+- Other types → No version bump
 
 #### Important: Never Manually Update Package Versions
 
 - ❌ **Don't** manually edit the version field in `pyproject.toml`
-- ❌ **Don't** manually edit the version field in `package.json`
-- ✅ **Do** use `pnpm changeset` to create version change requests
-- ✅ **Do** let the CI/CD system handle automated versioning and publishing
+- ✅ **Do** use conventional commit messages
+- ✅ **Do** let commitizen and CI/CD handle versioning automatically
 
-The CI system will automatically reject PRs that contain manual version changes to ensure consistency and prevent conflicts with the changeset workflow.
-
-#### Changeset Files
-
-Changeset files are markdown files that describe your changes. They should be committed with your PR and will be consumed when creating releases.
+The CI system will automatically reject PRs that contain manual version changes to ensure consistency.
 
 ## Non-Technical Contributions
 

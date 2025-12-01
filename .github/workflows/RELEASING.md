@@ -1,35 +1,63 @@
 # Release Process
 
-This repository uses [Changesets](https://github.com/changesets/changesets) to manage releases and versioning.
+This repository uses [Commitizen](https://commitizen-tools.github.io/commitizen/) to manage releases and versioning.
 
 ## Overview
 
 The release workflow is fully automated via GitHub Actions:
 
-1. **PR Creation**: Add a changeset to your PR
-2. **PR Merge**: A Release PR is automatically created/updated
+1. **PR Creation**: Use conventional commit messages in your PR
+2. **PR Merge**: A Release PR is automatically created/updated based on commit messages
 3. **Release PR Merge**: Package is published to PyPI and a GitHub release is created
 
-## Adding a Changeset
+## Conventional Commits
 
-When making changes that should trigger a release, add a changeset to your PR:
+All commit messages must follow the [Conventional Commits](https://www.conventionalcommits.org/) specification. This enables automatic version bumping and changelog generation.
 
-```bash
-# Install dependencies (first time only)
-pnpm install
+### Commit Message Format
 
-# Create a changeset
-pnpm changeset
+```
+<type>(<scope>): <subject>
+
+[optional body]
+
+[optional footer]
 ```
 
-This will prompt you to:
-1. Select the type of change:
-   - **Major** (1.0.0 → 2.0.0): Breaking changes
-   - **Minor** (1.0.0 → 1.1.0): New features, backwards compatible
-   - **Patch** (1.0.0 → 1.0.1): Bug fixes, backwards compatible
-2. Write a summary of the changes
+### Types
 
-The changeset will be saved as a markdown file in `.changeset/` and should be committed with your PR.
+- **feat**: A new feature (triggers MINOR version bump)
+- **fix**: A bug fix (triggers PATCH version bump)
+- **docs**: Documentation only changes
+- **style**: Code style changes (formatting, missing semicolons, etc.)
+- **refactor**: Code refactoring without adding features or fixing bugs
+- **test**: Adding or updating tests
+- **chore**: Changes to build process or auxiliary tools
+
+### Breaking Changes
+
+To trigger a MAJOR version bump, add `BREAKING CHANGE:` in the commit footer or add `!` after the type:
+
+```bash
+feat!: remove deprecated API endpoint
+
+BREAKING CHANGE: The /v1/users endpoint has been removed. Use /v2/users instead.
+```
+
+### Examples
+
+```bash
+# Feature (minor bump)
+feat(instrumentation): add support for custom exporters
+
+# Bug fix (patch bump)
+fix(config): correct validation for sampling rate
+
+# Breaking change (major bump)
+feat!: redesign configuration API
+
+BREAKING CHANGE: Configuration now uses a class-based approach instead of dictionaries.
+```
 
 ## Workflow Details
 
@@ -37,7 +65,7 @@ The changeset will be saved as a markdown file in `.changeset/` and should be co
 
 When you open a PR to `main`, the following checks run:
 
-- **Changeset validation**: Ensures a changeset is present (using `pnpm changeset status`)
+- **Conventional commits validation**: Ensures all commits follow conventional commits format
 - **Version validation**: Ensures `pyproject.toml` version hasn't been manually changed
 - **Tests**: Runs tests across Python 3.10, 3.11, and 3.12
 - **Linting**: Runs Black, Ruff, and MyPy
@@ -46,60 +74,62 @@ When you open a PR to `main`, the following checks run:
 
 When your PR is merged to `main`:
 
-1. **If changesets exist and version unchanged**:
+1. **If commits since last tag and version unchanged**:
    - A Release PR is created/updated with title "Release vX.X.X"
-   - The changeset determines the new version based on all pending changesets
+   - Commitizen analyzes commit messages to determine version bump type
    - `pyproject.toml` is automatically updated with the new version
-   - Changesets are consumed and their contents added to CHANGELOG.md (if present)
+   - CHANGELOG.md is automatically generated from commit messages
 
 2. **If version has changed (Release PR merged)**:
    - Package is built using Python's `build` module
    - Published to PyPI using the `PYPI_API_TOKEN` secret
    - GitHub release is created with tag `vX.X.X`
-   - Release notes are extracted from the Release PR body
+   - Release notes are extracted from CHANGELOG.md
 
 ## Release PR
 
 The Release PR will:
 - Have the branch name `changeset-release/main`
 - Update `pyproject.toml` with the new version
-- Consume all changesets and add them to the changelog
+- Generate/update CHANGELOG.md with changes from commit messages
 - Show all changes that will be included in the release
 
-**Do not manually edit the Release PR** - it's managed by the changesets action.
+**Do not manually edit the Release PR** - it's managed by commitizen.
 
 ## Manual Version Bumps (Not Recommended)
 
-If you need to manually bump the version without changesets:
+If you need to manually bump the version:
 
-1. Update `version` in `pyproject.toml`
-2. Update `version` in `package.json` (keep them in sync)
-3. Commit and push to `main`
+1. Install commitizen: `pip install commitizen`
+2. Run: `cz bump` (or `cz bump --dry-run` to preview)
+3. Commit and push changes
 
-The workflow will detect the version change and automatically publish.
-
-However, **this bypasses the changelog generation** and is not recommended. Always prefer using changesets.
+However, **manual bumps should be rare** as the automated workflow handles most cases.
 
 ## Troubleshooting
 
-### "No changesets found" error on PR
+### "Commit message does not follow conventional commits format" error on PR
 
-Make sure you've:
-1. Run `pnpm changeset` and committed the generated `.changeset/*.md` file
-2. The changeset file is not named `README.md` or `config.json`
+Your commit messages must follow the conventional commits format. Fix by:
+1. Use interactive rebase to reword commits: `git rebase -i origin/main`
+2. Or squash and rewrite: `git reset --soft origin/main && git commit -m "feat: your feature description"`
+3. Force push: `git push --force`
+
+Alternatively, ask a maintainer to squash merge with a proper commit message.
 
 ### Version validation fails
 
 This means you manually changed the version in `pyproject.toml`. Either:
-1. Revert the version change and use a changeset instead, or
-2. Update both `pyproject.toml` and `package.json` if this is intentional
+1. Revert the version change and let commitizen handle it, or
+2. Ensure the change is intentional (manual bump scenario)
 
 ### Release PR not created
 
 Check that:
-1. Your PR included a changeset file
-2. The changeset file was committed in the `.changeset/` directory
+1. Your commits follow conventional commits format
+2. Your commits include types that trigger version bumps (feat, fix, etc.)
 3. The base branch is `main`
+4. There are commits since the last tag
 
 ### PyPI publish fails
 
@@ -117,25 +147,36 @@ git checkout -b feature/add-cool-feature
 # 2. Make your changes
 # ... edit files ...
 
-# 3. Install dependencies (first time)
-pnpm install
-
-# 4. Create a changeset
-pnpm changeset
-# Select "minor" for a new feature
-# Write: "Add cool new feature for doing X"
-
-# 5. Commit everything
+# 3. Commit with conventional commit format
 git add .
-git commit -m "Add cool new feature"
+git commit -m "feat(instrumentation): add support for custom exporters
 
-# 6. Push and create PR
+Add ability to configure custom OTLP exporters with user-defined endpoints and authentication methods."
+
+# 4. Push and create PR
 git push origin feature/add-cool-feature
 
-# 7. After PR is approved and merged:
-#    - Release PR is automatically created
+# 5. After PR is approved and merged:
+#    - Release PR is automatically created based on commit messages
 #    - Review the Release PR
 #    - Merge the Release PR to publish
 
-# 8. Package is now live on PyPI! 🎉
+# 6. Package is now live on PyPI! 🎉
 ```
+
+## Helper Tool
+
+To make writing conventional commits easier, you can use commitizen interactively:
+
+```bash
+# Install in dev environment
+pip install -e ".[dev]"
+
+# Use interactive commit
+cz commit
+
+# Or just use cz as alias
+cz c
+```
+
+This will prompt you through creating a properly formatted commit message.
