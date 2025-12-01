@@ -22,11 +22,12 @@ Once you have been assigned an issue, the steps to contribute are:
 1. Create a fork version of the repo.
 2. Open a branch with a name prefixed with `feat/`, `fix/`, or `chore/` depending on the nature of the change. Use your best judgement when deciding on the prefix.
 3. Implement the desired changes.
-4. Add tests to any relevant test suites to validate functionality.
-5. Commit your changes using `cz commit`. See the [Version Management](#version-management) section below for details on commit message format.
-6. Open a Pull Request from your forked repo back to the main repo. Tag one of the core contributors as a reviewer.
-7. Once the core contributor has reviewed the code and all comments have been resolved, the PR will be approved and merged into the `main` branch.
-8. When your PR is merged, your conventional commit messages will be used to automatically create a release PR with proper version bumps and changelogs. Once the release PR is merged, updated packages will be published to PyPI automatically.
+4. Add tests to any relevant test suites to validate functionality
+5. Run all linting checks locally to ensure your code passes CI validation: `make lint-all` (this runs Black formatter check, Ruff linter, and MyPy type checker).
+6. Commit your changes using `cz commit`. See the [Version Management](#version-management) section below for details on commit message format.
+7. Open a Pull Request from your forked repo back to the main repo. Tag one of the core contributors as a reviewer.
+8. Once the core contributor has reviewed the code and all comments have been resolved, the PR will be approved and merged into the `main` branch.
+9. When your PR is merged, your conventional commit messages will be used to automatically create a release PR with proper version bumps and changelogs. Once the release PR is merged, updated packages will be published to PyPI automatically.
 
 ### Version Management
 
