@@ -143,7 +143,9 @@ Both SDKs receive the same comprehensive instrumentation with no additional conf
 | `username` | ❌ | `str` | Username (required when `type="basic"`) |
 | `password` | ❌ | `str` | Password (required when `type="basic"`) |
 
-## Testing
+## Development
+
+### Testing
 
 Run the test suite to verify the library's behavior:
 
@@ -156,6 +158,9 @@ python -m pytest tests/ --cov=shinzo --cov-report=term-missing
 
 # Run specific test file
 python -m pytest tests/test_config.py -v
+
+# Or use make
+make test
 ```
 
 The test suite validates:
@@ -163,6 +168,22 @@ The test suite validates:
 - ✅ PII sanitization for emails and sensitive data
 - ✅ Authentication configuration (bearer, basic, API key)
 - ✅ Sampling rate validation
+
+### Linting
+
+Run all linting checks before submitting a PR:
+
+```bash
+# Run all linting checks (black, ruff, mypy)
+make lint-all
+
+# Or run individual checks
+make format      # Format code with black
+make lint        # Run ruff linter
+make type-check  # Run mypy type checker
+```
+
+This ensures your code passes all CI validation checks locally before pushing.
 
 ## License
 
