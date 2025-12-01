@@ -9,14 +9,20 @@ set -e
 BASE_BRANCH=${GITHUB_BASE_REF:-main}
 git fetch origin $BASE_BRANCH
 
-# Extract version from pyproject.toml
+# Extract version from pyproject.toml [project] section only
+# We need to be careful because there are multiple version fields (project.version and tool.commitizen.version)
 get_version() {
   local file=$1
-  grep -E '^version = ' "$file" | sed 's/version = "\(.*\)"/\1/'
+  # Use awk to extract only the version from [project] section
+  awk '/^\[project\]/{flag=1; next} /^\[/{flag=0} flag && /^version = /{gsub(/version = "|"/, ""); print; exit}' "$file"
 }
 
 current_version=$(get_version pyproject.toml)
-base_version=$(git show origin/$BASE_BRANCH:pyproject.toml | grep -E '^version = ' | sed 's/version = "\(.*\)"/\1/')
+base_version=$(git show origin/$BASE_BRANCH:pyproject.toml | awk '/^\[project\]/{flag=1; next} /^\[/{flag=0} flag && /^version = /{gsub(/version = "|"/, ""); print; exit}')
+
+# Trim whitespace
+current_version=$(echo "$current_version" | tr -d '[:space:]')
+base_version=$(echo "$base_version" | tr -d '[:space:]')
 
 # Check if version has changed from base branch
 if [ "$current_version" != "$base_version" ]; then
