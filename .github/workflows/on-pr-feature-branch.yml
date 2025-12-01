@@ -13,8 +13,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  check-changeset:
-    name: Check for changeset
+  check-conventional-commits:
+    name: Check for conventional commits
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -25,19 +25,50 @@ jobs:
       - name: Fetch base branch
         run: git fetch origin main:refs/remotes/origin/main
 
-      - name: Setup Node.js (for changesets CLI)
-        uses: actions/setup-node@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          node-version: '20'
+          python-version: "3.12"
+          cache: 'pip'
 
-      - name: Install pnpm
-        run: npm install -g pnpm
+      - name: Install commitizen
+        run: |
+          python -m pip install --upgrade pip
+          pip install commitizen
 
-      - name: Install dependencies
-        run: pnpm install
+      - name: Check conventional commits
+        run: |
+          # Get the list of commits from the PR
+          commits=$(git log origin/main..HEAD --pretty=format:"%H")
 
-      - name: Check for changeset
-        run: pnpm changeset status --since=origin/main
+          # Check if there are any commits
+          if [ -z "$commits" ]; then
+            echo "No commits found in this PR"
+            exit 1
+          fi
+
+          # Validate each commit message
+          echo "$commits" | while read -r commit_hash; do
+            # Get the full commit message
+            commit_msg=$(git log -1 --pretty=format:"%s" "$commit_hash")
+
+            echo "Checking commit: $commit_hash"
+            echo "Message: $commit_msg"
+
+            # Skip merge commits as they don't need to follow conventional format
+            if [[ "$commit_msg" =~ ^Merge ]]; then
+              echo "⏭️  Skipping merge commit"
+              continue
+            fi
+
+            # Validate commit message
+            cz check -m "$commit_msg" || {
+              echo "❌ Commit message does not follow conventional commits format"
+              echo "Please use format: type(scope): subject"
+              echo "Types: feat, fix, docs, style, refactor, test, chore"
+              exit 1
+            }
+          done
 
   validate-no-version-change:
     name: Validate version has not changed

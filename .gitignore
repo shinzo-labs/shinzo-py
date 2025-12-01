@@ -49,12 +49,5 @@ Thumbs.db
 *.log
 .env
 
-# Changeset
-changeset-status.json
+# Release artifacts
 release_body.tmp
-
-# Node (for changesets CLI only)
-node_modules/
-package-lock.json
-pnpm-lock.yaml
-yarn.lock
