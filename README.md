@@ -187,4 +187,8 @@ This ensures your code passes all CI validation checks locally before pushing.
 
 ## License
 
-MIT License - see [LICENSE](./LICENSE.md) file for details
+This package is distributed under the [MIT License](./LICENSE.md).
+
+## Contributing
+
+Contributions are welcome! Please see the [Contributing Guide](./CONTRIBUTING.md) for more information.

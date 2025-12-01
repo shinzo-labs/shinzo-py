@@ -11,6 +11,7 @@ concurrency:
 
 jobs:
   check-version:
+    name: Check if version changed
     runs-on: ubuntu-latest
     outputs:
       version_changed: ${{ steps.version-check.outputs.changed }}
@@ -23,8 +24,9 @@ jobs:
       - name: Check if version changed
         id: version-check
         run: |
-          current_version=$(grep -E '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
-          base_version=$(git show HEAD^:pyproject.toml | grep -E '^version = ' | sed 's/version = "\(.*\)"/\1/')
+          # Extract version from [project] section only (avoiding [tool.commitizen] version)
+          current_version=$(awk '/^\[project\]/{flag=1; next} /^\[/{flag=0} flag && /^version = /{gsub(/version = "|"/, ""); print; exit}' pyproject.toml | tr -d '[:space:]')
+          base_version=$(git show HEAD^:pyproject.toml | awk '/^\[project\]/{flag=1; next} /^\[/{flag=0} flag && /^version = /{gsub(/version = "|"/, ""); print; exit}' | tr -d '[:space:]')
 
           echo "current_version=$current_version" >> $GITHUB_OUTPUT
 
@@ -36,104 +38,160 @@ jobs:
             echo "Version unchanged: $current_version"
           fi
 
-  check-changesets:
+  check-bump-needed:
+    name: Check if bump is needed
     runs-on: ubuntu-latest
     outputs:
-      hasChangesets: ${{ steps.changeset-check.outputs.hasChangesets }}
+      bumpNeeded: ${{ steps.bump-check.outputs.bumpNeeded }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Check for changesets
-        id: changeset-check
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+
+      - name: Install commitizen
         run: |
-          if [ -n "$(ls .changeset/*.md 2>/dev/null | grep -v 'README.md' | grep -v 'config.json')" ]; then
-            echo "hasChangesets=true" >> $GITHUB_OUTPUT
-            echo "Found changesets - will create/update release PR"
+          python -m pip install --upgrade pip
+          pip install commitizen
+
+      - name: Check if version bump is needed
+        id: bump-check
+        run: |
+          # Get commits since last tag
+          last_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+
+          if [ -z "$last_tag" ]; then
+            echo "No previous tags found, bump needed"
+            echo "bumpNeeded=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Check if there are any commits that would trigger a bump
+          commits_since_tag=$(git log $last_tag..HEAD --oneline)
+
+          if [ -z "$commits_since_tag" ]; then
+            echo "No new commits since last tag"
+            echo "bumpNeeded=false" >> $GITHUB_OUTPUT
           else
-            echo "hasChangesets=false" >> $GITHUB_OUTPUT
-            echo "No changesets found"
+            echo "New commits found since last tag, bump needed"
+            echo "bumpNeeded=true" >> $GITHUB_OUTPUT
           fi
 
   create-release-pr:
     name: Create or update Release PR
     runs-on: ubuntu-latest
-    needs: [check-version, check-changesets]
-    if: needs.check-changesets.outputs.hasChangesets == 'true' && needs.check-version.outputs.version_changed == 'false'
+    needs: [check-version, check-bump-needed]
+    if: needs.check-bump-needed.outputs.bumpNeeded == 'true' && needs.check-version.outputs.version_changed == 'false'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Setup Node.js (for changesets)
-        uses: actions/setup-node@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          node-version: '20'
+          python-version: "3.12"
+          cache: 'pip'
 
-      - name: Get next version from changesets
-        id: get-next-version
+      - name: Install commitizen
         run: |
-          # Install pnpm and dependencies
-          npm install -g pnpm
-          pnpm install
+          python -m pip install --upgrade pip
+          pip install commitizen
 
-          # Get the next version
-          pnpm changeset status --output=changeset-status.json || echo '{"releases":[]}' > changeset-status.json
+      - name: Configure git
+        run: |
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
 
-          # Parse the version (if available)
-          if [ -f changeset-status.json ]; then
-            next_version=$(node -e "
-              const fs = require('fs');
-              const status = JSON.parse(fs.readFileSync('changeset-status.json', 'utf8'));
-              const releases = status.releases || [];
+      - name: Bump version and update changelog on main branch
+        id: bump
+        run: |
+          # Stay on main branch to run the bump analysis
+          # Dry run to get the next version
+          next_version=$(cz bump --dry-run --yes 2>&1 | grep -oP 'tag to create: v\K[0-9]+\.[0-9]+\.[0-9]+' || echo "")
 
-              if (releases.length > 0) {
-                console.log(releases[0].newVersion || 'unknown');
-              } else {
-                console.log('unknown');
-              }
-            ")
-            echo "next_version=$next_version" >> $GITHUB_OUTPUT
-            echo "Next version will be: $next_version"
+          if [ -z "$next_version" ]; then
+            echo "No version bump needed or error occurred"
+            echo "Commitizen output:"
+            cz bump --dry-run --yes 2>&1 || true
+            exit 1
           fi
 
+          echo "next_version=$next_version" >> $GITHUB_OUTPUT
+          echo "Next version will be: $next_version"
+
+          # Perform the actual bump on main
+          cz bump --yes --changelog
+
+      - name: Check for existing release branch and update
+        id: check-branch
+        run: |
+          git fetch origin
+          if git ls-remote --heads origin | grep -q 'refs/heads/changeset-release/main'; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            # Delete the old release branch locally and remotely
+            git push origin --delete changeset-release/main || true
+            git branch -D changeset-release/main 2>/dev/null || true
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+          # Create fresh release branch from current state (with version bump)
+          git checkout -b changeset-release/main
+
+      - name: Push release branch
+        run: |
+          git push origin changeset-release/main --force
+
       - name: Create or update Release PR
-        uses: changesets/action@v1
-        with:
-          publish: false
-          title: "Release v${{ steps.get-next-version.outputs.next_version }}"
-          commit: "Version packages"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Update pyproject.toml version
-        if: steps.get-next-version.outputs.next_version != 'unknown'
         run: |
-          # Checkout the release branch
-          git fetch origin
-          release_branch=$(git branch -r | grep 'changeset-release/main' | sed 's/origin\///' | xargs)
+          next_version="${{ steps.bump.outputs.next_version }}"
 
-          if [ -n "$release_branch" ]; then
-            git checkout $release_branch
+          # Check if PR already exists
+          existing_pr=$(gh pr list --head changeset-release/main --base main --json number --jq '.[0].number' || echo "")
 
-            # Update the version
-            export NEW_VERSION="${{ steps.get-next-version.outputs.next_version }}"
-            .github/scripts/update-python-version.sh
+          # Extract only the latest version section from CHANGELOG
+          # This gets content between the first ## v{version} and the next ## v
+          changelog_content=$(awk '/^## v'"$next_version"'/{flag=1; next} /^## v/{flag=0} flag' CHANGELOG.md)
 
-            # Commit the change
-            git config --global user.email "github-actions[bot]@users.noreply.github.com"
-            git config --global user.name "github-actions[bot]"
-            git add pyproject.toml
+          # Create PR body
+          pr_body=$(cat << EOF
+          This PR was automatically generated by commitizen.
 
-            if ! git diff --staged --quiet; then
-              git commit -m "Update pyproject.toml version to $NEW_VERSION"
-              git push origin $release_branch
-              echo "✅ Updated pyproject.toml version to $NEW_VERSION"
-            else
-              echo "No version changes needed"
-            fi
+          ## Changes in v$next_version
+
+          $changelog_content
+
+          ---
+
+          **Merging this PR will:**
+          - Update the version to $next_version in pyproject.toml
+          - Publish the package to PyPI
+          - Create a GitHub release with tag v$next_version
+          EOF
+          )
+
+          if [ -n "$existing_pr" ]; then
+            echo "Updating existing PR #$existing_pr"
+            gh pr edit $existing_pr \
+              --title "Release v$next_version" \
+              --body "$pr_body"
+          else
+            echo "Creating new PR"
+            gh pr create \
+              --title "Release v$next_version" \
+              --body "$pr_body" \
+              --base main \
+              --head changeset-release/main
           fi
 
   publish-to-pypi:
@@ -175,11 +233,11 @@ jobs:
           echo "version=$version" >> $GITHUB_OUTPUT
 
           # Try to get PR body from the merged release PR
-          pr_body=$(gh pr list --search "$(git rev-parse HEAD)" --state merged --json number,body --jq '.[0].body // ""')
+          release_body=$(gh pr list --search "$(git rev-parse HEAD)" --state merged --json number,body --jq '.[0].body // ""')
 
-          if [ -n "$pr_body" ]; then
+          if [ -n "$release_body" ]; then
             # Extract the changelog section if it exists
-            changelog=$(echo "$pr_body" | sed -n '/# Releases/,/---/p' || echo "$pr_body")
+            changelog=$(echo "$release_body" | sed -n '/# Releases/,/---/p' || echo "$release_body")
             echo "$changelog" > release_body.tmp
           else
             echo "Release version $version" > release_body.tmp
