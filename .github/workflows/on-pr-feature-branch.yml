@@ -39,7 +39,7 @@ jobs:
       - name: Check conventional commits
         run: |
           # Get the list of commits from the PR
-          commits=$(git log origin/main..HEAD --pretty=format:"%H %s")
+          commits=$(git log origin/main..HEAD --pretty=format:"%H")
 
           # Check if there are any commits
           if [ -z "$commits" ]; then
@@ -48,10 +48,21 @@ jobs:
           fi
 
           # Validate each commit message
-          echo "$commits" | while read -r commit_hash commit_msg; do
+          echo "$commits" | while read -r commit_hash; do
+            # Get the full commit message
+            commit_msg=$(git log -1 --pretty=format:"%s" "$commit_hash")
+
             echo "Checking commit: $commit_hash"
             echo "Message: $commit_msg"
-            echo "$commit_msg" | cz check --message || {
+
+            # Skip merge commits as they don't need to follow conventional format
+            if [[ "$commit_msg" =~ ^Merge ]]; then
+              echo "⏭️  Skipping merge commit"
+              continue
+            fi
+
+            # Validate commit message
+            cz check -m "$commit_msg" || {
               echo "❌ Commit message does not follow conventional commits format"
               echo "Please use format: type(scope): subject"
               echo "Types: feat, fix, docs, style, refactor, test, chore"
