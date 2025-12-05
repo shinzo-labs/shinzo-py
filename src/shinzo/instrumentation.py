@@ -2,6 +2,7 @@
 
 import functools
 import inspect
+import json
 import time
 from datetime import datetime
 from typing import Any, Callable, Dict, Optional
@@ -114,8 +115,7 @@ class McpServerInstrumentation:
             return
 
         self._instrument_tools()
-        # TODO: Add more instrumentation as needed for other MCP operations
-        # self._instrument_prompts()
+        self._instrument_prompts()
         # self._instrument_resources()
 
         self.is_instrumented = True
@@ -164,6 +164,194 @@ class McpServerInstrumentation:
             return decorator
 
         self.server.call_tool = instrumented_call_tool
+
+    def _instrument_prompts(self) -> None:
+        """Instrument prompt operations."""
+        if hasattr(self.server, "prompt"):
+            self._instrument_fastmcp_prompts()
+        elif hasattr(self.server, "get_prompt") or hasattr(self.server, "list_prompts"):
+            self._instrument_traditional_prompts()
+
+    def _instrument_fastmcp_prompts(self) -> None:
+        """Instrument FastMCP prompt calls."""
+        original_prompt = self.server.prompt
+
+        def instrumented_prompt(*args: Any, **kwargs: Any) -> Callable[[Callable], Callable]:
+            """Instrumented FastMCP prompt decorator."""
+
+            def decorator(f: Callable) -> Callable:
+                # Determine prompt name
+                prompt_name = kwargs.get("name")
+                if not prompt_name and len(args) > 0 and isinstance(args[0], str):
+                    prompt_name = args[0]
+                if not prompt_name:
+                    prompt_name = f.__name__
+
+                wrapped_func = self._create_prompt_handler(f, prompt_name)
+                result: Callable = original_prompt(*args, **kwargs)(wrapped_func)
+                return result
+
+            return decorator
+
+        self.server.prompt = instrumented_prompt
+
+    def _instrument_traditional_prompts(self) -> None:
+        """Instrument traditional MCP prompt calls."""
+        if hasattr(self.server, "get_prompt"):
+            original_get_prompt = self.server.get_prompt
+
+            @functools.wraps(original_get_prompt)
+            async def instrumented_get_prompt(
+                name: str, arguments: Optional[Dict[str, str]] = None
+            ) -> Any:
+                return await self._execute_prompt_call(
+                    original_get_prompt, (name, arguments), {}, name, arguments
+                )
+
+            self.server.get_prompt = instrumented_get_prompt
+
+        if hasattr(self.server, "list_prompts"):
+            original_list_prompts = self.server.list_prompts
+
+            @functools.wraps(original_list_prompts)
+            async def instrumented_list_prompts(*args: Any, **kwargs: Any) -> Any:
+                span_attributes = {
+                    "mcp.method.name": "prompts/list",
+                    "gen_ai.system": "mcp",
+                }
+
+                async def span_fn(span: Any) -> Any:
+                    if self.session_tracker and self.session_tracker.is_session_active():
+                        self.session_tracker.add_event(
+                            SessionEvent(
+                                timestamp=datetime.now(),
+                                event_type=EventType.PROMPT_LIST,
+                                metadata={"method": "prompts/list"},
+                            )
+                        )
+                    return await original_list_prompts(*args, **kwargs)
+
+                return await self.telemetry_manager.start_active_span(
+                    "prompts/list", span_attributes, span_fn
+                )
+
+            self.server.list_prompts = instrumented_list_prompts
+
+    def _create_prompt_handler(self, original_handler: Callable, prompt_name: str) -> Callable:
+        """Create instrumented handler for a specific prompt (FastMCP style)."""
+
+        @functools.wraps(original_handler)
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:
+            # In FastMCP, args are usually bound to function signature.
+            # We treat kwargs as arguments.
+            return await self._execute_prompt_call(
+                original_handler, args, kwargs, prompt_name, kwargs
+            )
+
+        return wrapper
+
+    async def _execute_prompt_call(
+        self,
+        original_handler: Callable,
+        args: tuple,
+        kwargs: dict,
+        prompt_name: str,
+        arguments: Optional[Dict[str, Any]],
+    ) -> Any:
+        """Execute an instrumented prompt call."""
+        # Metrics
+        record_histogram = self.telemetry_manager.get_histogram(
+            "mcp.server.prompts.duration", "MCP prompt execution duration", "ms"
+        )
+        increment_counter = self.telemetry_manager.get_increment_counter(
+            f"mcp.server.prompts.get.{prompt_name}", "MCP prompt usage count", "calls"
+        )
+
+        base_attributes = {
+            "mcp.method.name": "prompts/get",
+            "mcp.prompt.name": prompt_name,
+            "gen_ai.system": "mcp",
+        }
+
+        if arguments:
+            try:
+                base_attributes["mcp.prompt.arguments"] = json.dumps(arguments)
+            except Exception:
+                base_attributes["mcp.prompt.arguments"] = str(arguments)
+
+        # Runtime info
+        runtime_info = get_runtime_info()
+        span_attributes = {
+            **base_attributes,
+            "mcp.request.id": generate_uuid(),
+            "client.address": runtime_info["address"],
+        }
+        if runtime_info["port"]:
+            span_attributes["client.port"] = runtime_info["port"]
+
+        async def span_fn(span: Any) -> Any:
+            increment_counter(1)
+            start_time = time.time()
+            start_timestamp = datetime.now()
+            error = None
+
+            # Session Event Start
+            if self.session_tracker and self.session_tracker.is_session_active():
+                self.session_tracker.add_event(
+                    SessionEvent(
+                        timestamp=start_timestamp,
+                        event_type=EventType.PROMPT_GET,
+                        tool_name=prompt_name,  # Map prompt name to tool_name field for consistency
+                        input_data=(
+                            arguments
+                            if self.telemetry_manager.config.enable_argument_collection
+                            else None
+                        ),
+                        metadata={"method": "prompts/get"},
+                    )
+                )
+
+            try:
+                if inspect.iscoroutinefunction(original_handler):
+                    result = await original_handler(*args, **kwargs)
+                else:
+                    result = original_handler(*args, **kwargs)
+
+                span.set_status(Status(StatusCode.OK))
+                return result
+            except Exception as e:
+                error = e
+                span.set_status(Status(StatusCode.ERROR, str(e)))
+                span.set_attribute("error.type", type(e).__name__)
+
+                if self.session_tracker and self.session_tracker.is_session_active():
+                    duration_ms = int((time.time() - start_time) * S_TO_MS)
+                    self.session_tracker.add_event(
+                        SessionEvent(
+                            timestamp=datetime.now(),
+                            event_type=EventType.ERROR,
+                            tool_name=prompt_name,
+                            error_data={
+                                "message": str(e),
+                                "type": type(e).__name__,
+                            },
+                            duration_ms=duration_ms,
+                            metadata={"method": "prompts/get"},
+                        )
+                    )
+                raise e
+            finally:
+                end_time = time.time()
+                duration = (end_time - start_time) * S_TO_MS
+
+                hist_attributes = dict(base_attributes)
+                if error:
+                    hist_attributes["error.type"] = type(error).__name__
+                record_histogram(duration, hist_attributes)
+
+        return await self.telemetry_manager.start_active_span(
+            f"prompts/get {prompt_name}", span_attributes, span_fn
+        )
 
     def _create_instrumented_handler(
         self, original_handler: Callable, method: str, name: str
