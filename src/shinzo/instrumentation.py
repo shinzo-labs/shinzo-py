@@ -116,7 +116,7 @@ class McpServerInstrumentation:
 
         self._instrument_tools()
         self._instrument_prompts()
-        # self._instrument_resources()
+        self._instrument_resources()
 
         self.is_instrumented = True
 
@@ -367,7 +367,13 @@ class McpServerInstrumentation:
         Returns:
             Instrumented handler
         """
-        base_attributes = {"mcp.method.name": method, "mcp.tool.name": name}
+        base_attributes = {"mcp.method.name": method}
+
+        # Add operation-specific attributes
+        if method.startswith("resources/"):
+            base_attributes["mcp.resource.uri"] = name
+        else:
+            base_attributes["mcp.tool.name"] = name
 
         record_histogram = self.telemetry_manager.get_histogram(
             "mcp.server.operation.duration", "MCP request or notification duration", "ms"
@@ -456,20 +462,45 @@ class McpServerInstrumentation:
             result = None
             error = None
 
+            # Determine if this is a resource or tool operation
+            is_resource_operation = method.startswith("resources/")
+
             if self.session_tracker and self.session_tracker.is_session_active():
-                self.session_tracker.add_event(
-                    SessionEvent(
-                        timestamp=start_timestamp,
-                        event_type=EventType.TOOL_CALL,
-                        tool_name=name,
-                        input_data=(
-                            params
-                            if self.telemetry_manager.config.enable_argument_collection
-                            else None
-                        ),
-                        metadata={"method": method},
+                if is_resource_operation:
+                    # For resource operations, determine the event type
+                    if method == "resources/list":
+                        event_type = EventType.RESOURCE_LIST
+                    else:  # resources/read
+                        event_type = EventType.RESOURCE_READ
+
+                    self.session_tracker.add_event(
+                        SessionEvent(
+                            timestamp=start_timestamp,
+                            event_type=event_type,
+                            resource_uri=name,
+                            input_data=(
+                                params
+                                if self.telemetry_manager.config.enable_argument_collection
+                                else None
+                            ),
+                            metadata={"method": method},
+                        )
                     )
-                )
+                else:
+                    # Tool operation
+                    self.session_tracker.add_event(
+                        SessionEvent(
+                            timestamp=start_timestamp,
+                            event_type=EventType.TOOL_CALL,
+                            tool_name=name,
+                            input_data=(
+                                params
+                                if self.telemetry_manager.config.enable_argument_collection
+                                else None
+                            ),
+                            metadata={"method": method},
+                        )
+                    )
 
             try:
                 if is_async:
@@ -480,20 +511,44 @@ class McpServerInstrumentation:
 
                 if self.session_tracker and self.session_tracker.is_session_active():
                     duration_ms = int((time.time() - start_time) * S_TO_MS)
-                    self.session_tracker.add_event(
-                        SessionEvent(
-                            timestamp=datetime.now(),
-                            event_type=EventType.TOOL_RESPONSE,
-                            tool_name=name,
-                            output_data=(
-                                result
-                                if self.telemetry_manager.config.enable_argument_collection
-                                else None
-                            ),
-                            duration_ms=duration_ms,
-                            metadata={"method": method},
+
+                    if is_resource_operation:
+                        # For resource operations, use the same event type for response
+                        if method == "resources/list":
+                            event_type = EventType.RESOURCE_LIST
+                        else:  # resources/read
+                            event_type = EventType.RESOURCE_READ
+
+                        self.session_tracker.add_event(
+                            SessionEvent(
+                                timestamp=datetime.now(),
+                                event_type=event_type,
+                                resource_uri=name,
+                                output_data=(
+                                    result
+                                    if self.telemetry_manager.config.enable_argument_collection
+                                    else None
+                                ),
+                                duration_ms=duration_ms,
+                                metadata={"method": method, "status": "success"},
+                            )
                         )
-                    )
+                    else:
+                        # Tool operation
+                        self.session_tracker.add_event(
+                            SessionEvent(
+                                timestamp=datetime.now(),
+                                event_type=EventType.TOOL_RESPONSE,
+                                tool_name=name,
+                                output_data=(
+                                    result
+                                    if self.telemetry_manager.config.enable_argument_collection
+                                    else None
+                                ),
+                                duration_ms=duration_ms,
+                                metadata={"method": method},
+                            )
+                        )
             except Exception as e:
                 error = e
                 span.set_status(Status(StatusCode.ERROR, str(e)))
@@ -505,7 +560,8 @@ class McpServerInstrumentation:
                         SessionEvent(
                             timestamp=datetime.now(),
                             event_type=EventType.ERROR,
-                            tool_name=name,
+                            tool_name=name if not is_resource_operation else None,
+                            resource_uri=name if is_resource_operation else None,
                             error_data={
                                 "message": str(e),
                                 "type": type(e).__name__,
@@ -535,3 +591,76 @@ class McpServerInstrumentation:
         return await self.telemetry_manager.start_active_span(
             f"{method} {name}", span_attributes, span_fn
         )
+
+    def _instrument_resources(self) -> None:
+        """Instrument resource operations."""
+        if hasattr(self.server, "resource"):
+            self._instrument_fastmcp_resources()
+        elif hasattr(self.server, "list_resources"):
+            self._instrument_traditional_resources()
+
+    def _instrument_fastmcp_resources(self) -> None:
+        """Instrument FastMCP resource decorators."""
+        original_resource = self.server.resource
+
+        def instrumented_resource(*args: Any, **kwargs: Any) -> Callable[[Callable], Callable]:
+            """Instrumented FastMCP resource decorator."""
+
+            def decorator(f: Callable) -> Callable:
+                resource_uri = kwargs.get("uri", f.__name__)
+                wrapped_func = self._create_instrumented_handler(f, "resources/read", resource_uri)
+                result: Callable = original_resource(*args, **kwargs)(wrapped_func)
+
+                return result
+
+            return decorator
+
+        self.server.resource = instrumented_resource
+
+    def _instrument_traditional_resources(self) -> None:
+        """Instrument traditional MCP resource operations."""
+        # Instrument list_resources if it exists
+        if hasattr(self.server, "list_resources"):
+            original_list_resources = self.server.list_resources
+
+            @functools.wraps(original_list_resources)
+            def instrumented_list_resources(
+                *, validate_input: bool = True
+            ) -> Callable[[Callable], Callable]:
+                """Instrumented list_resources decorator."""
+
+                def decorator(func: Callable) -> Callable:
+                    wrapped_func = self._create_instrumented_handler(
+                        func, "resources/list", "list_resources"
+                    )
+                    result: Callable = original_list_resources(validate_input=validate_input)(
+                        wrapped_func
+                    )
+                    return result
+
+                return decorator
+
+            self.server.list_resources = instrumented_list_resources
+
+        # Instrument read_resource if it exists
+        if hasattr(self.server, "read_resource"):
+            original_read_resource = self.server.read_resource
+
+            @functools.wraps(original_read_resource)
+            def instrumented_read_resource(
+                *, validate_input: bool = True
+            ) -> Callable[[Callable], Callable]:
+                """Instrumented read_resource decorator."""
+
+                def decorator(func: Callable) -> Callable:
+                    wrapped_func = self._create_instrumented_handler(
+                        func, "resources/read", "read_resource"
+                    )
+                    result: Callable = original_read_resource(validate_input=validate_input)(
+                        wrapped_func
+                    )
+                    return result
+
+                return decorator
+
+            self.server.read_resource = instrumented_read_resource

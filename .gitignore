@@ -48,3 +48,6 @@ Thumbs.db
 # Project specific
 *.log
 .env
+
+# Release artifacts
+release_body.tmp
