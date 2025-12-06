@@ -22,6 +22,8 @@ class EventType(str, Enum):
     ERROR = "error"
     USER_INPUT = "user_input"
     SYSTEM_MESSAGE = "system_message"
+    PROMPT_GET = "prompt_get"
+    PROMPT_LIST = "prompt_list"
 
 
 @dataclass
