@@ -116,7 +116,7 @@ class McpServerInstrumentation:
 
         self._instrument_tools()
         self._instrument_prompts()
-        # self._instrument_resources()
+        self._instrument_resources()
 
         self.is_instrumented = True
 
