@@ -3,7 +3,7 @@
 import pytest
 from unittest.mock import MagicMock, AsyncMock
 from shinzo.instrumentation import McpServerInstrumentation
-from shinzo.session import EventType, SessionEvent
+from shinzo.session import EventType
 from shinzo.types import TelemetryConfig
 
 
